@@ -449,7 +449,8 @@ An alias name expands in place of a word, including inside flags.
 --profession matches the title and skills, not the full description.
 --platform picks boards. A vacancy has one source, so list several with ||.
 Names: hh, habr, superjob, djinni, getmatch, geekjob, remoteok, wwr,
-arbeitnow, remotive, jobicy, himalayas, nomads.
+arbeitnow, remotive, jobicy, himalayas, nomads, nofluff, landing, muse,
+fourday, jobspresso.
 With --sources, the result is the intersection of the two lists.
 
 Presets cover the usual spellings of a language or framework:

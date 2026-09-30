@@ -2,6 +2,7 @@
 package httpx
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -31,6 +32,15 @@ func New() *Client {
 
 // Get returns the response body for a 2xx reply.
 func (c *Client) Get(ctx context.Context, rawURL string, header map[string]string) ([]byte, error) {
+	return c.do(ctx, http.MethodGet, rawURL, header, nil)
+}
+
+// Post sends a body and returns the response body for a 2xx reply.
+func (c *Client) Post(ctx context.Context, rawURL string, header map[string]string, body []byte) ([]byte, error) {
+	return c.do(ctx, http.MethodPost, rawURL, header, body)
+}
+
+func (c *Client) do(ctx context.Context, method, rawURL string, header map[string]string, body []byte) ([]byte, error) {
 	var last error
 	for attempt := 0; attempt < 3; attempt++ {
 		if c.limiter != nil {
@@ -38,7 +48,11 @@ func (c *Client) Get(ctx context.Context, rawURL string, header map[string]strin
 				return nil, err
 			}
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+		var rdr io.Reader
+		if body != nil {
+			rdr = bytes.NewReader(body)
+		}
+		req, err := http.NewRequestWithContext(ctx, method, rawURL, rdr)
 		if err != nil {
 			return nil, err
 		}
@@ -58,14 +72,14 @@ func (c *Client) Get(ctx context.Context, rawURL string, header map[string]strin
 			}
 			continue
 		}
-		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+		payload, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 		resp.Body.Close()
 		if readErr != nil {
 			last = readErr
 			continue
 		}
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			return body, nil
+			return payload, nil
 		}
 		last = fmt.Errorf("http %d", resp.StatusCode)
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {

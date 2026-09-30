@@ -7,7 +7,7 @@ After `make build` every example below uses `./bin/vscan` from the project direc
 ## Contents
 
 1. [Build](#1-build)
-2. [Run a search](#2-run-a-search)
+2. [Usage](#2-usage)
 3. [Presets](#3-presets)
 4. [Query language](#4-query-language)
 5. [Boards](#5-boards)
@@ -70,9 +70,24 @@ make clean   # removes bin/ and dist/
 
 `make cross` builds the same static binaries for Intel and Apple silicon Macs, and for 64-bit Linux.
 
-## 2. Run a search
+## 2. Usage
 
-A one-shot search prints current matches and exits. It does not read or write the seen-cache.
+This section is the command reference: synopsis, the query operand, every flag and the values it accepts, subcommands, streams, signals, and the errors you will actually see. Later sections show the same features as longer recipes.
+
+A one-shot search prints current matches and exits. It does not read or write the seen-cache. A scanner (`--scanner`) repeats until you stop it.
+
+### Synopsis
+
+```
+vscan [flags] [query]
+vscan presets
+vscan alias [NAME=EXPRESSION]
+vscan alias --delete NAME
+vscan creds [set|delete PLATFORM]
+vscan --response [URLS]
+```
+
+`vscan` below means `./bin/vscan` before install and `vscan` after `make install`. The query is one argument. Quote it when it contains `&`, `|`, spaces, or parentheses.
 
 ```bash
 ./bin/vscan --help
@@ -81,21 +96,468 @@ A one-shot search prints current matches and exits. It does not read or write th
 ./bin/vscan 'Senior&|React'
 ./bin/vscan 'Senior&Angular' | wc -l
 echo 'Senior&Angular' | ./bin/vscan
-```
-
-Limit the work while you try a query. `--max-pages 1` reads one page per board. `--sources` is a comma list. `--no-history` keeps this trial out of the history file.
-
-```bash
 ./bin/vscan --no-history --max-pages 1 --sources habr,remotive 'Golang||Go'
 ./bin/vscan --no-history --max-pages 1 --platform='hh||habr' --profession='Angular||TypeScript'
 ./bin/vscan --company='TBank||AlfaBank' --profession='Golang||Go' --platform=habr
-```
-
-Stdout is one URL per line. Board errors go to stderr, and the other boards continue. A closed pipe (`head`) stops the process with exit code 0:
-
-```bash
 ./bin/vscan --no-history --max-pages 1 --sources remotive 'Go||Golang' | head -n 1
 ```
+
+### How flags are written
+
+A flag is a word that starts with `-`. Anything else is the query, unless it is the subcommand `alias`, `presets`, or `creds` in the first position.
+
+| Form | Meaning |
+| --- | --- |
+| `--json`, `-v`, `--scanner` | a switch. It takes no value. `--json=true` is an unknown flag |
+| `--max-pages 1` and `--max-pages=1` | the same option. The next word is the value, unless that word starts with `-` |
+| `--listen` | the value is optional. Alone, the address is `127.0.0.1:8787` |
+| `--history` | the number is optional. The next word is read as the number only when it is an integer |
+| `--response` | the URL list is optional. Omit it to read stdin |
+| `--` | end of flags. The next word is the query even if it starts with `-` |
+| `-h`, `--help` | print help and exit 0. Later arguments are not read |
+
+```bash
+./bin/vscan --max-pages=1 --sources=remotive Go
+./bin/vscan --max-pages 1 --sources remotive Go
+./bin/vscan -- --help
+```
+
+The last command searches for the word `--help`. It does not print the help text.
+
+Short options are only `-h` and `-v`. There is no `-j`, no combined `-vh`, and no `--version`.
+
+### Operand: the query
+
+One positional argument. Several words without quotes are an error (`the query must be one argument; quote it`).
+
+| Input | What runs |
+| --- | --- |
+| `Go` | preset, becomes `Golang\|\|Go` |
+| `angular` | same preset as `Angular`. Case does not matter |
+| `'Senior&Angular'` | both words, whole word |
+| `'Senior\|\|Angular'` | either word |
+| `'Senior&\|Angular&\|Remote'` | smart AND. See [Query language](#4-query-language) |
+| `'"Go"'` | the word Go only. The preset is not applied |
+| no argument, and a pipe | the first line of stdin is the query |
+| no argument, and a terminal | error, exit 2. Pass a query or `--company`, `--profession`, or `--platform` |
+| `--company=Acme` and no query | legal. The company filter is the whole search |
+
+A field flag and a query are combined with AND. Every one that is set must match.
+
+```bash
+./bin/vscan 'Senior&Angular&Typescript'
+./bin/vscan '(Senior||Lead)&Angular'
+./bin/vscan '"remote work"'
+echo 'Senior&|Angular' | ./bin/vscan --no-history --max-pages 1 --sources remotive
+```
+
+`&&` is two `&` operators, not a word. The error is `operator needs a word or a parenthesis after it`. AND is a single `&`. A single `|` is an error. OR is `||`.
+
+### Options
+
+#### `-h`, `--help`
+
+Print the built-in help to stdout and exit 0. No search runs.
+
+```bash
+./bin/vscan -h
+./bin/vscan --help
+```
+
+#### `--json`
+
+One JSON object per line instead of a bare URL. Fields that the board did not provide are omitted.
+
+| Field | When it is present |
+| --- | --- |
+| `url`, `title`, `company`, `source` | always |
+| `remote` | `"yes"` or `"no"` when the board says so, or `"yes"` when the text says remote |
+| `location`, `salary` | when the board published them |
+| `posted` | RFC3339 time |
+| `age` | `today`, `1 day`, or `N days` |
+
+`--json` together with `--verbose` stays JSON. There is no pretty-printed form.
+
+```bash
+./bin/vscan --json --no-history --max-pages 1 --sources jobicy 'Go||Golang'
+./bin/vscan --json --verbose --no-history --max-pages 1 --sources remotive Go
+```
+
+#### `--verbose`, `-v`
+
+A text block per vacancy, then a blank line. The same fields as `--json`. Unknown fields are left out. `remote: no` is printed only when the board says the job is not remote. Absence is not printed as `no`.
+
+Do not pipe `--verbose` into `while read`. One vacancy is several lines. Use the default URL lines, or `--json`.
+
+```bash
+./bin/vscan -v --no-history --max-pages 1 --sources remotive Go
+./bin/vscan --verbose --no-history --max-pages 1 --sources habr 'Go||Golang'
+```
+
+#### `--company EXPR`
+
+Match the company name only. `EXPR` is the query language. Hyphens are ignored, so `TBank` matches `T-Bank`. Presets are not expanded here. `Go` stays the word Go.
+
+```bash
+./bin/vscan --company=Acme Go
+./bin/vscan --company='TBank||AlfaBank' --profession='Golang||Go'
+./bin/vscan --company='T-Bank' 'Senior&|Go'
+```
+
+#### `--profession EXPR`
+
+Match the title and the skills. The full description is not searched by this flag. Presets expand, so `--profession=TypeScript` becomes `TypeScript||TS`. Combined with the query and `--company` by AND.
+
+```bash
+./bin/vscan --profession=Angular
+./bin/vscan --profession='Angular||TypeScript' --platform='hh||habr||nofluff'
+./bin/vscan --profession=Go --company=Acme
+```
+
+#### `--platform EXPR`
+
+Pick boards. A vacancy has one source, so list several with `||`. `&` on two board names almost never matches.
+
+Names, in any case: `hh`, `habr`, `superjob`, `djinni`, `getmatch`, `geekjob`, `remoteok`, `wwr`, `arbeitnow`, `remotive`, `jobicy`, `himalayas`, `nomads`, `nofluff`, `landing`, `muse`, `fourday`, `jobspresso`.
+
+An unknown name is exit 2 and the error lists the known names. Presets are not expanded. The board table is in [Boards](#5-boards).
+
+When `--platform` and `--sources` are both set, the search uses the intersection. An empty intersection is `no platform selected`.
+
+```bash
+./bin/vscan --platform=hh 'Senior&Angular'
+./bin/vscan --platform='hh||habr||remotive||nofluff' --profession=Angular
+./bin/vscan --platform=Remotive --sources=remotive,jobicy Go
+./bin/vscan --platform='remoteok||wwr' --sources=wwr Go
+```
+
+The third command searches Remotive only. The fourth searches We Work Remotely only.
+
+#### `--sources LIST`
+
+The same board names as `--platform`, comma-separated. Spaces around commas are ignored. Operators are not allowed: `hh||habr` is one illegal name. An empty list is an error.
+
+Default, when the flag is omitted: every board in the table.
+
+```bash
+./bin/vscan --sources hh,habr 'Senior&Angular'
+./bin/vscan --sources=nofluff,landing,muse,fourday,jobspresso 'Angular||TypeScript'
+./bin/vscan --sources remoteok Go
+```
+
+#### `--max-pages N`
+
+How many pages to read from each board. `N` is a whole number, `0` or greater. Default `0`.
+
+| Value | Meaning |
+| --- | --- |
+| `0` | read until that board reports the end, then apply the safety cap below |
+| `1`, `2`, ... | stop after that many pages, even if the board has more |
+
+Safety caps when `N` is `0`, so a feed that never ends cannot run forever:
+
+| Boards | Cap |
+| --- | --- |
+| `hh`, SuperJob API | until the API reports the last page |
+| SuperJob HTML | 20 pages |
+| `djinni` | 10 pages |
+| `geekjob` | 30 pages |
+| `arbeitnow`, `himalayas`, `nofluff`, `landing`, `muse`, `fourday`, `jobspresso` | 5 pages |
+| `habr`, `remoteok`, `wwr`, `remotive`, `jobicy`, `nomads` | one payload. The flag does not add pages |
+
+```bash
+./bin/vscan --max-pages 1 --sources remotive Go
+./bin/vscan --max-pages=3 --sources nofluff,landing 'Angular&TypeScript'
+./bin/vscan --max-pages 0 --sources hh Go
+```
+
+#### `--scanner`, `--scan`
+
+Repeat the search until Ctrl+C. `--scan` is the same flag. The first pass is silent when the seen-file for this search is empty: it only remembers the current URLs. Later passes print a URL only when it is new. See [Scanner](#8-scanner) and [Cache](#7-cache).
+
+`--every`, `--listen`, and `--webhook` require this flag.
+
+```bash
+./bin/vscan --scanner --every 30 'Senior&|Angular'
+./bin/vscan --scan --every 60 --platform=remoteok Go
+```
+
+#### `--every N`
+
+Minutes between scanner passes. `N` is a whole number, at least `1`. Default `60` when `--scanner` is set and `--every` is omitted. Without `--scanner` the flag is an error.
+
+```bash
+./bin/vscan --scanner --every 1 --max-pages 1 --sources remoteok Go
+./bin/vscan --scanner --every=15 --no-history 'Senior&|React'
+```
+
+`--every 1` is for a short check. Day to day, use `30` or `60`.
+
+#### `--listen [ADDR]`
+
+With `--scanner`, open a local HTTP server and publish each new vacancy as Server-Sent Events. Requires `--scanner`.
+
+| Form | Address |
+| --- | --- |
+| `--listen` | `127.0.0.1:8787` |
+| `--listen 127.0.0.1:8787` | that address |
+| `--listen=localhost:8787` | that address |
+| `--listen 8787` | rejected. A bare port is not `host:port` |
+
+The host must be loopback: `127.0.0.1` or `localhost`. `0.0.0.0` is rejected.
+
+| Method and path | Body |
+| --- | --- |
+| `GET /health` | `{"status":"ok"}` |
+| `GET /events` | SSE. Each vacancy is `event: vacancy` and one JSON `data:` line |
+
+Events that fire while nobody is connected are not replayed. stdout still prints the same URLs. The recipe is in [SSE](#92-sse---listen).
+
+```bash
+./bin/vscan --scanner --every 30 --listen 'Senior&|Angular'
+./bin/vscan --scanner --listen 127.0.0.1:8787 --max-pages 1 --sources remoteok Go
+curl -s http://127.0.0.1:8787/health
+curl -N http://127.0.0.1:8787/events
+```
+
+#### `--webhook URL`
+
+With `--scanner`, POST one JSON object per new vacancy. `Content-Type` is `application/json`. The body is the same object as `--json`. A failed POST is retried twice. The handler should answer `2xx`. Requires `--scanner`. Can be combined with `--listen` and stdout.
+
+```bash
+./bin/vscan --scanner --every 30 --webhook http://127.0.0.1:8790/vacancy Go
+./bin/vscan --scanner --listen --webhook http://127.0.0.1:8790/vacancy 'Senior&|Angular'
+```
+
+#### `--history`, `--history N`
+
+| Form | Effect |
+| --- | --- |
+| `--history` | print saved queries, newest first, as `N<TAB>query`. Does not search. Exit 0. An empty file prints `vscan: history is empty` on stderr and exits 0 |
+| `--history 3` or `--history=3` | run entry 3 again. Numbers start at 1. Do not also pass a query or a field flag |
+| a missing number | exit 2 |
+
+The saved line is the text before alias and preset expansion, so both expand again on replay. `--no-history` on the replayed command is not part of the saved line. The file is described in [History](#11-history).
+
+```bash
+./bin/vscan --history
+./bin/vscan --history 1
+./bin/vscan --history=2 --max-pages 1 --sources remotive
+```
+
+The third command is legal: `--max-pages` and `--sources` are not part of the saved search, so they apply to the replay.
+
+#### `--no-history`
+
+Do not write this query into the history file. Does not delete existing lines.
+
+```bash
+./bin/vscan --no-history --max-pages 1 Go
+```
+
+#### `--clear-cache`
+
+Delete every file under `~/.cache/vscan/seen/`. History and aliases stay. The count is every remembered link, for every search, not one query.
+
+| With | Effect |
+| --- | --- |
+| alone | print `cleared N remembered links` and exit 0 |
+| `--scanner` and a query | delete the cache, print the current matches once, then only new URLs |
+| a one-shot search | the seen-cache is still deleted, then the search prints current matches. A one-shot search does not use the cache |
+
+```bash
+./bin/vscan --clear-cache
+./bin/vscan --clear-cache --scanner --every 60 --platform=remoteok Go
+```
+
+#### `--response [URLS]`
+
+Apply to vacancy URLs. This does not search. A query, `--scanner`, or `--history` together with `--response` is an error.
+
+Included only in `bin/vscan-response` (`make build-response`, `-tags response`). `./bin/vscan` from `make build` prints `auto-apply is not included in this build` and exits 2.
+
+| Form | URLs come from |
+| --- | --- |
+| `--response` | stdin, when stdin is not a terminal. One URL per line |
+| `--response URLS` or `--response=URLS` | that argument. Split on newlines and on the unit separator `$'\x1f'` |
+| a pipe and an argument together | both lists |
+
+Stdout of a finished run is `applied N`. Exit 0 when `N > 0` or the run was interrupted. Exit 1 when nothing was confirmed. Exit 2 on usage errors. Details and examples are in [Auto-apply](#14-auto-apply).
+
+```bash
+./bin/vscan-response --response < /tmp/jobs.txt
+printf '%s\x1f%s\n' 'https://hh.ru/vacancy/1' 'https://career.habr.com/vacancies/2' | ./bin/vscan-response --response
+```
+
+#### `--headed`
+
+Show the browser window. Legal only together with `--response`. Without `--response` it is an error.
+
+```bash
+./bin/vscan-response --headed --response 'https://hh.ru/vacancy/1'
+```
+
+### Subcommands
+
+The subcommand is the first argument. `./bin/vscan --json presets` searches for the word `presets`.
+
+#### `presets`
+
+Print every preset as `names = expression` and exit 0. Extra arguments are an error. The tables are in [Presets](#3-presets).
+
+```bash
+./bin/vscan presets
+./bin/vscan presets | head
+```
+
+#### `alias`
+
+| Form | Effect |
+| --- | --- |
+| `alias` | list `name=expression` lines. No aliases: `vscan: no aliases` on stderr, exit 0 |
+| `alias NAME=EXPRESSION` | save a definition. Also `alias NAME EXPRESSION` as two arguments |
+| `alias --delete NAME` or `alias -d NAME` | remove that name. Exit 2 if it is missing |
+| a bad expression | not saved. Exit 2 |
+
+A name matches `^[A-Za-z_][A-Za-z0-9_]*$`. The body is the query language. A cycle is an error. A user alias replaces a preset of the same name. Quoted phrases in a search are not expanded. The file is in [Aliases](#10-aliases).
+
+```bash
+./bin/vscan alias myStack='Angular||Typescript||JavaScript||JS||TS||React'
+./bin/vscan alias
+./bin/vscan --profession=myStack --platform='hh||habr'
+./bin/vscan alias --delete myStack
+./bin/vscan alias -d myStack
+```
+
+#### `creds`
+
+Store a board login. Same build rule as `--response`: the search binary refuses it.
+
+| Form | Effect |
+| --- | --- |
+| `creds` | list board names that have a saved login. Passwords are not printed |
+| `creds set PLATFORM` | ask for the login and the password on the terminal. Echo of the password is off |
+| `creds delete PLATFORM` | remove that login |
+
+`PLATFORM` is one of `hh`, `habr`, `superjob`, `djinni`, `getmatch`, `geekjob`. Any other name is exit 2.
+
+```bash
+./bin/vscan-response creds set hh
+./bin/vscan-response creds
+./bin/vscan-response creds delete hh
+```
+
+### Standard input
+
+| Invocation | Stdin |
+| --- | --- |
+| a query was passed | stdin is not read |
+| no query and no field flag, stdin is a pipe | the first line is the query. Later lines are ignored |
+| `--response` and stdin is a pipe | every non-empty line is a URL |
+| `--response` and stdin is a terminal, and no URL argument | exit 2, nothing to apply |
+| `creds set` | the login and the password are read from the terminal, not from the pipe |
+
+### Standard output
+
+Line-buffered and flushed, so a pipe sees each line as it is found.
+
+| Mode | One vacancy |
+| --- | --- |
+| default | one URL |
+| `--verbose` | a block, then a blank line |
+| `--json` | one JSON object |
+| `--history` | `N` and a tab and the saved query |
+| `presets` | `names = expression` |
+| `alias` | `name=expression` |
+| `--clear-cache` alone | `cleared N remembered links` |
+| `--response` | `applied N` |
+
+### Standard error
+
+Messages start with `vscan: `. A board that fails (HTTP error, empty anti-bot page, a captcha on apply) is reported here and the other boards or URLs continue. The process does not exit 2 for a single board failure.
+
+Progress lines are written only when stderr is a terminal. A redirect or a pipe on stderr hides them. There is no `--color` and no `--quiet`.
+
+### Signals
+
+| Signal | Effect |
+| --- | --- |
+| SIGINT (Ctrl+C), SIGTERM | cancel the search or the apply run. Exit 0 |
+| SIGPIPE | ignored as a death signal. A closed stdout, as in `head`, stops the process with exit 0 |
+
+```bash
+./bin/vscan --no-history --max-pages 1 --sources remotive Go | head -n 1
+echo $?
+```
+
+Check codes with `./bin/vscan`. `go run` wraps the real status.
+
+### Exit status
+
+| Code | When |
+| --- | --- |
+| 0 | at least one match; the scanner or an apply run was interrupted; `--clear-cache` finished; stdout was closed; `--help`; `presets`; `alias` listed, saved, or deleted; `creds` listed, saved, or deleted; `--history` listed, including an empty history; `--response` confirmed at least one application |
+| 1 | a one-shot search found nothing; `--response` confirmed nothing |
+| 2 | bad arguments, an unknown flag, an unknown board, a broken query, a missing history entry, a broken alias, or auto-apply used in a binary built without it |
+
+### Environment
+
+| Variable | Values |
+| --- | --- |
+| `HH_TOKEN` | optional hh.ru API token. Empty: the public API is used |
+| `SUPERJOB_API_KEY` | when set, SuperJob uses its API. When empty, SuperJob is read from public HTML |
+| `XDG_CACHE_HOME` | replaces `~/.cache` |
+| `XDG_DATA_HOME` | replaces `~/.local/share` |
+| `XDG_CONFIG_HOME` | replaces `~/.config` |
+| `PATH` | after `make install`, must contain `PREFIX/bin` |
+| `PREFIX` | `make` variable, default `/usr/local`. Not read by the binary |
+| `DESTDIR` | `make` variable, prepended to the install path. Not read by the binary |
+
+The binary does not read a dotenv file.
+
+### Files
+
+| Path | Role |
+| --- | --- |
+| `~/.cache/vscan/seen/` | scanner memory. One URL per line. The file name is a hash of the expanded search and the sorted board list |
+| `~/.local/share/vscan/history` | past queries, newest first |
+| `~/.config/vscan/aliases` | `name=expression` lines |
+| `~/.config/vscan/synonyms` | synonym groups for smart AND (`&\|`) |
+
+```
+remote = relocate, wfh, work from home
+```
+
+A synonym line replaces the whole built-in group for that word. The built-in groups are remote, senior, middle, and junior, including common translations. A missing synonyms file is not an error. Smart AND is the only mode that uses the file. Literal `&` does not.
+
+### Diagnostics
+
+Errors go to stderr as `vscan: ...` and exit 2 unless the table says otherwise.
+
+| Message | Cause |
+| --- | --- |
+| `unknown flag --foo` | the flag is not in this section. Check the spelling |
+| `the query must be one argument; quote it` | two positional words. Quote the query |
+| `operator needs a word or a parenthesis after it` | `&&`, a trailing operator, or a missing word |
+| `single "\|"; write \|\| for OR` | a single `\|` was used. OR is `\|\|` |
+| `unknown platform "linkedin"` | the name is not in the board list. The error prints the list |
+| `no platform selected` | `--platform` and `--sources` do not overlap |
+| `--every only works with --scanner` | also `--listen` and `--webhook` |
+| `--listen accepts only loopback` | the host is not `127.0.0.1` or `localhost` |
+| `--headed only works with --response` | |
+| `--response does not run a search` | a query, `--scanner`, or `--history` was also passed |
+| `auto-apply is not included in this build` | `./bin/vscan` was built with `-tags noresponse`. Use `./bin/vscan-response` |
+| `history is empty` | `--history` with nothing saved. Exit 0 |
+| `no aliases` | `alias` with an empty file. Exit 0 |
+| a board line and the others continue | that site returned an error or an empty anti-bot page. Exit code follows the matches from the boards that worked |
+
+### Caveats
+
+- macOS and Linux only. There is no Windows build.
+- vscan does not bypass a login, a captcha, or an anti-bot page. HeadHunter often answers 403 from some networks. Djinni often returns an empty page. The error is on stderr and the other boards continue.
+- `C++` and `C#` also match the word C, and `.NET` also matches the word net, because words are compared without punctuation.
+- `Senior` in `Senior&Angular` is the whole word Senior. Lead, sr, and the Russian spellings apply only in smart mode: `Senior&|Angular`.
+- Public feeds that ask for a credit, named in `--help` and not on each stdout line: [remoteok.com](https://remoteok.com), [weworkremotely.com](https://weworkremotely.com), [remotive.com](https://remotive.com), [jobicy.com](https://jobicy.com), [arbeitnow.com](https://www.arbeitnow.com). stdout is the job URL.
 
 ## 3. Presets
 
@@ -263,11 +725,18 @@ The names are fixed. Any other `--platform` value is an error.
 | `jobicy` | Jobicy remote jobs |
 | `himalayas` | Himalayas jobs API |
 | `nomads` | Working Nomads |
+| `nofluff` | NoFluffJobs search API |
+| `landing` | Landing.jobs |
+| `muse` | The Muse, software engineering |
+| `fourday` | 4dayweek.io |
+| `jobspresso` | Jobspresso jobs RSS |
 
 ```bash
-./bin/vscan --platform='hh||habr||remotive' --profession='Angular||TypeScript'
-./bin/vscan --sources hh,habr 'Senior&Angular'
+./bin/vscan --platform='hh||habr||remotive||nofluff' --profession='Angular||TypeScript'
+./bin/vscan --sources hh,habr,nofluff,landing 'Senior&Angular'
 ```
+
+`--sources` and `--platform` use this table. `nofluff`, `landing`, `muse`, `fourday`, and `jobspresso` are valid in both. The Muse feed is the Software Engineering category. NoFluffJobs, The Muse, 4dayweek, and Jobspresso walk pages; with `--max-pages 0` each stops after five pages. Landing.jobs stops when its list ends, with the same five-page ceiling.
 
 When both `--platform` and `--sources` are set, the result is their intersection. vscan does not bypass a login or a captcha. An empty or blocked page is an error on stderr.
 
@@ -498,9 +967,9 @@ File `~/.local/share/vscan/history` (`$XDG_DATA_HOME/vscan/history`). New querie
 
 | Code | When |
 | --- | --- |
-| 0 | at least one match, the scanner was stopped, `--clear-cache` finished, or the pipe was closed (`head`) |
-| 1 | a one-shot search found nothing |
-| 2 | bad arguments, an unknown board, or a broken query |
+| 0 | at least one match; the scanner or an apply run was interrupted; `--clear-cache` finished; stdout was closed (`head`); `--help`; `presets`; `alias` or `creds` succeeded, including an empty list; `--history` listed queries, including an empty history; `--response` confirmed at least one application |
+| 1 | a one-shot search found nothing, or `--response` confirmed nothing |
+| 2 | bad arguments, an unknown flag, an unknown board, a broken query, a missing history entry, a broken alias, or auto-apply used in a binary built without it |
 
 Run the built binary when you check these codes. `go run` wraps the real status.
 
@@ -561,4 +1030,8 @@ printf '%s\x1f%s\n' \
 ```
 
 `--headed` shows the browser window. Stdout of a finished run is `applied N`. Exit 0 means at least one application was confirmed, 1 means none, 2 means bad arguments or a build without this module.
+
+## Copyright
+
+vscan is released under the MIT license. Copyright vscan contributors. See `LICENSE`.
 

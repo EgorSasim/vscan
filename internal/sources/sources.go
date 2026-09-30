@@ -10,12 +10,17 @@ import (
 	"vscan/internal/provider"
 	"vscan/internal/provider/arbeitnow"
 	"vscan/internal/provider/djinni"
+	"vscan/internal/provider/fourday"
 	"vscan/internal/provider/geekjob"
 	"vscan/internal/provider/getmatch"
 	"vscan/internal/provider/habr"
 	"vscan/internal/provider/hh"
 	"vscan/internal/provider/himalayas"
 	"vscan/internal/provider/jobicy"
+	"vscan/internal/provider/jobspresso"
+	"vscan/internal/provider/landing"
+	"vscan/internal/provider/muse"
+	"vscan/internal/provider/nofluff"
 	"vscan/internal/provider/nomads"
 	"vscan/internal/provider/remoteok"
 	"vscan/internal/provider/remotive"
@@ -27,6 +32,7 @@ import (
 var Names = []string{
 	"hh", "habr", "superjob", "djinni", "getmatch", "geekjob",
 	"remoteok", "wwr", "arbeitnow", "remotive", "jobicy", "himalayas", "nomads",
+	"nofluff", "landing", "muse", "fourday", "jobspresso",
 }
 
 // Canonical returns the official id for a platform name.
@@ -73,6 +79,16 @@ func Build(client *httpx.Client, names []string) ([]provider.Provider, error) {
 			out = append(out, &himalayas.Provider{HTTP: client})
 		case "nomads":
 			out = append(out, &nomads.Provider{HTTP: client})
+		case "nofluff":
+			out = append(out, &nofluff.Provider{HTTP: client})
+		case "landing":
+			out = append(out, &landing.Provider{HTTP: client})
+		case "muse":
+			out = append(out, &muse.Provider{HTTP: client})
+		case "fourday":
+			out = append(out, &fourday.Provider{HTTP: client})
+		case "jobspresso":
+			out = append(out, &jobspresso.Provider{HTTP: client})
 		default:
 			return nil, fmt.Errorf("unknown platform %q (available: %s)", name, strings.Join(Names, ", "))
 		}

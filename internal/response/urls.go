@@ -84,6 +84,16 @@ func boardOf(host string) (id string, apply bool, ok bool) {
 		return "arbeitnow", false, true
 	case host == "workingnomads.com" || strings.HasSuffix(host, ".workingnomads.com"):
 		return "nomads", false, true
+	case host == "nofluffjobs.com" || strings.HasSuffix(host, ".nofluffjobs.com"):
+		return "nofluff", false, true
+	case host == "landing.jobs" || strings.HasSuffix(host, ".landing.jobs"):
+		return "landing", false, true
+	case host == "themuse.com" || strings.HasSuffix(host, ".themuse.com"):
+		return "muse", false, true
+	case host == "4dayweek.io" || strings.HasSuffix(host, ".4dayweek.io"):
+		return "fourday", false, true
+	case host == "jobspresso.co" || strings.HasSuffix(host, ".jobspresso.co"):
+		return "jobspresso", false, true
 	default:
 		return "", false, false
 	}

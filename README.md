@@ -138,6 +138,7 @@ One positional argument. Several words without quotes are an error (`the query m
 | `'Senior&Angular'` | both words, whole word |
 | `'Senior\|Angular'` | either word |
 | `'Senior&\|Angular&\|Remote'` | smart AND. See [Query language](#4-query-language) |
+| `'Angular&!React'` | Angular, and not the word React |
 | `'"Go"'` | the word Go only. The preset is not applied |
 | no argument, and a pipe | the first line of stdin is the query |
 | no argument, and a terminal | error, exit 2. Pass a query or `--company`, `--profession`, or `--platform` |
@@ -149,10 +150,11 @@ A field flag and a query are combined with AND. Every one that is set must match
 ./bin/vscan 'Senior&Angular&Typescript'
 ./bin/vscan '(Senior|Lead)&Angular'
 ./bin/vscan '"remote work"'
+./bin/vscan 'Angular&!"full stack"&!fullstack&!.NET'
 echo 'Senior&|Angular' | ./bin/vscan --no-history --max-pages 1 --sources remotive
 ```
 
-`&&` is two `&` operators with nothing between them. The error is `operator needs a word or a parenthesis after it`. AND is one `&`. OR is one `|`. `||` is two OR operators, and the error is `| needs a word or a parenthesis`. Quote a query that contains `|`. Without quotes the shell pipes into the next word.
+`&&` is two `&` operators with nothing between them. The error is `operator needs a word or a parenthesis after it`. AND is one `&`. OR is one `|`. `||` is two OR operators, and the error is `| needs a word or a parenthesis`. `!` drops the next word, phrase, or group: `Angular&!React`. A bare `!` fails with the same missing-word error. Quote a query that contains `|` or `!`. Without quotes the shell pipes on `|`, and in double quotes `!` is history expansion. Single quotes avoid both.
 
 ### Options
 
@@ -539,7 +541,7 @@ Errors go to stderr as `vscan: ...` and exit 2 unless the table says otherwise.
 | --- | --- |
 | `unknown flag --foo` | the flag is not in this section. Check the spelling |
 | `the query must be one argument; quote it` | two positional words. Quote the query |
-| `operator needs a word or a parenthesis after it` | `&&`, a trailing operator, or a missing word |
+| `operator needs a word or a parenthesis after it` | `&&`, a trailing operator, a bare `!`, or a missing word |
 | doubled bar | `\|\|` has nothing between the two OR operators. The error is `\| needs a word or a parenthesis`. OR is one `\|` |
 | `unknown platform "linkedin"` | the name is not in the board list. The error prints the list |
 | `no platform selected` | `--platform` and `--sources` do not overlap |
@@ -690,8 +692,13 @@ The query is one argument. Quote it. Operators may have spaces around them.
 | `Senior&Angular&\|Remote` | `Senior` and `Angular` are literal, `Remote` uses synonyms |
 | `(Senior\|Lead)&Angular` | parentheses. `&` and `&\|` bind tighter than `\|` |
 | `"remote work"` | a phrase |
+| `Angular&!React` | Angular, and not React. `!"full stack"` also drops `full-stack`. The single word `fullstack` needs its own `!fullstack` |
+| `Angular&\|!Remote` | smart exclusion. `Remote` also drops `relocate` and `wfh` |
+| `Angular&!(React\|Vue)` | drop either word. `!` binds tighter than `&` and `\|` |
 
-The operator to the left of a word sets that word's mode. The first word takes the mode of the first operator. One bare word is a literal search after presets expand, so `Go` becomes `Golang|Go` and `"Go"` stays the word Go. Several bare words are an error. OR is one `|`. Two bars in a row are an error. Quote the query: the shell treats an unquoted `|` as a pipe.
+The operator to the left of a word sets that word's mode. The first word takes the mode of the first operator. `!` uses that mode. A leading `!` is literal. One bare word is a literal search after presets expand, so `Go` becomes `Golang|Go` and `"Go"` stays the word Go. `!TypeScript` becomes `!(TypeScript|TS)`. Several bare words are an error, including `Angular !React`: write `Angular&!React`. OR is one `|`. Two bars in a row are an error. Quote the query in single quotes: the shell treats an unquoted `|` as a pipe, and `!` in double quotes is history expansion.
+
+Excluded words are not sent to the boards. The board search stays the positive part (`Angular`), and `!` is applied to the text that comes back.
 
 Field flags use the same operators and are combined with AND. An alias name expands in place of a word.
 

@@ -1,13 +1,14 @@
 // Package query parses the vacancy search language and matches it against text.
 //
-// Operators, longest match first: &|  |  &
-// & and &| bind tighter than |. Parentheses group.
+// Operators, longest match first: &|  |  &  !
+// & and &| bind tighter than |. ! binds tighter than both. Parentheses group.
 // The operator to the left of a word sets its mode. The first word takes the
-// mode of the first operator.
+// mode of the first operator. ! uses that same mode.
 //
 //	&   literal whole word, case-insensitive, no synonyms
 //	&|  smart: case-insensitive, ё=е, word or prefix, synonyms, light plurals
 //	|   either branch
+//	!   drop a word, a phrase, or a parenthesized group
 package query
 
 import (
@@ -44,6 +45,10 @@ type andExpr struct {
 
 type orExpr struct {
 	left, right Expr
+}
+
+type notExpr struct {
+	inner Expr
 }
 
 // Parse compiles a query string.
@@ -175,6 +180,14 @@ func (o *orExpr) hints() []string {
 func (o *orExpr) leaves() []string {
 	return append(o.left.leaves(), o.right.leaves()...)
 }
+
+func (n *notExpr) match(doc []string, syn *Synonyms) bool {
+	return !n.inner.match(doc, syn)
+}
+
+func (n *notExpr) hints() []string { return nil }
+
+func (n *notExpr) leaves() []string { return nil }
 
 // Terms returns every word or phrase in the expression, in source order.
 func Terms(e Expr) []string {
@@ -443,6 +456,7 @@ const (
 	tokAnd
 	tokSmart
 	tokOr
+	tokNot
 	tokLParen
 	tokRParen
 )
@@ -472,6 +486,9 @@ func lex(input string) ([]token, error) {
 		case s[i] == '&':
 			toks = append(toks, token{kind: tokAnd, text: "&"})
 			i++
+		case s[i] == '!':
+			toks = append(toks, token{kind: tokNot, text: "!"})
+			i++
 		case s[i] == '(':
 			toks = append(toks, token{kind: tokLParen, text: "("})
 			i++
@@ -491,7 +508,7 @@ func lex(input string) ([]token, error) {
 		default:
 			j := i
 			for j < len(s) {
-				if strings.HasPrefix(s[j:], "&|") || s[j] == '&' || s[j] == '|' || s[j] == '(' || s[j] == ')' || s[j] == '"' {
+				if strings.HasPrefix(s[j:], "&|") || s[j] == '&' || s[j] == '|' || s[j] == '!' || s[j] == '(' || s[j] == ')' || s[j] == '"' {
 					break
 				}
 				rr, sz := utf8.DecodeRuneInString(s[j:])
@@ -616,6 +633,16 @@ func (p *parser) parsePrimary() (Expr, error) {
 		}
 		p.next()
 		return inner, nil
+	case tokNot:
+		p.next()
+		inner, err := p.parsePrimary()
+		if err != nil {
+			return nil, err
+		}
+		if inner == nil {
+			return nil, fmt.Errorf("operator needs a word or a parenthesis after it")
+		}
+		return &notExpr{inner: inner}, nil
 	case tokTerm:
 		t := p.next()
 		ws := words(t.text)
@@ -629,10 +656,14 @@ func (p *parser) parsePrimary() (Expr, error) {
 }
 
 func tag(e Expr, smart bool) Expr {
-	if t, ok := e.(*term); ok {
+	switch t := e.(type) {
+	case *term:
 		cp := *t
 		cp.smart = smart
 		return &cp
+	case *notExpr:
+		return &notExpr{inner: tag(t.inner, smart)}
+	default:
+		return e
 	}
-	return e
 }

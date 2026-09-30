@@ -51,6 +51,14 @@ func TestPresetsExpand(t *testing.T) {
 	if err != nil || got != `"Go"` {
 		t.Fatalf("quoted got %q %v", got, err)
 	}
+	got, err = ExpandPresets("!TypeScript", nil)
+	if err != nil || got != "!(TypeScript|TS)" {
+		t.Fatalf("not preset got %q %v", got, err)
+	}
+	got, err = ExpandPresets(`!"full stack"`, nil)
+	if err != nil || got != `!"full stack"` {
+		t.Fatalf("not phrase got %q %v", got, err)
+	}
 	got, err = ExpandPresets("Senior&Go", nil)
 	if err != nil || got != "Senior&(Golang|Go)" {
 		t.Fatalf("mixed got %q %v", got, err)

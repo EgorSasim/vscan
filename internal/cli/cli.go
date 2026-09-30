@@ -434,6 +434,14 @@ The query is one argument. Operators may have spaces around them:
   Senior&Angular&|Remote     Senior and Angular are literal, Remote uses synonyms
   (Senior|Lead)&Angular      parentheses; & and &| bind tighter than |
   "remote work"              a quoted phrase
+  Angular&!React             Angular, and not the word React
+  Angular&!"full stack"      Angular, and not that phrase. full-stack
+                             is the same phrase; fullstack is another word
+
+! uses the mode of the operator on its left. A leading ! is literal.
+Write Angular&!React, not Angular !React. !Remote after &| also drops
+relocate. Quote the query with single quotes: | is a pipe, and ! is
+history expansion in double quotes.
 
 One word with no operator is a literal search. Several words with no
 operator are an error: join them with &, &|, or |. Two bars in a row

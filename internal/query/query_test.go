@@ -118,6 +118,65 @@ func TestShortSmartWordIsWhole(t *testing.T) {
 	}
 }
 
+func TestNotDropsWordPhraseAndDotNet(t *testing.T) {
+	e := mustParse(t, `"Angular"&TypeScript&!"full stack"&!fullstack&!.NET`)
+	if !Match(e, "Senior Angular developer, TypeScript", nil) {
+		t.Fatal("angular and typescript must stay")
+	}
+	if Match(e, "Senior AngularJS developer, TypeScript", nil) {
+		t.Fatal("quoted Angular must not match AngularJS")
+	}
+	if Match(e, "Full Stack Angular developer, TypeScript", nil) {
+		t.Fatal("phrase full stack")
+	}
+	if Match(e, "Full-Stack Angular developer, TypeScript", nil) {
+		t.Fatal("hyphenated full-stack splits into the same words")
+	}
+	if Match(e, "Fullstack Angular developer, TypeScript", nil) {
+		t.Fatal("one word fullstack")
+	}
+	if Match(e, "Angular and ASP.NET, TypeScript", nil) {
+		t.Fatal(".NET is the word net")
+	}
+	if Match(e, "TypeScript developer", nil) {
+		t.Fatal("Angular is required")
+	}
+	hints := Hints(e)
+	if len(hints) != 1 || hints[0] != "Angular TypeScript" {
+		t.Fatalf("excluded words must not be sent to the boards, hints = %#v", hints)
+	}
+}
+
+func TestNotUsesTheOperatorMode(t *testing.T) {
+	smart := mustParse(t, "Angular&|!Remote")
+	if Match(smart, "Angular role with relocation", nil) {
+		t.Fatal("smart !Remote must drop relocate")
+	}
+	if !Match(smart, "Angular role in the office", nil) {
+		t.Fatal("office angular must stay")
+	}
+	literal := mustParse(t, "Angular&!Remote")
+	if !Match(literal, "Angular role with relocation", nil) {
+		t.Fatal("literal !Remote must not treat relocate as remote")
+	}
+}
+
+func TestNotGroupAndBareError(t *testing.T) {
+	e := mustParse(t, `Angular&!(React|Vue)`)
+	if !Match(e, "Angular developer", nil) {
+		t.Fatal("angular alone")
+	}
+	if Match(e, "Angular and React", nil) {
+		t.Fatal("group exclusion")
+	}
+	if _, err := Parse("Angular&!"); err == nil {
+		t.Fatal("expected an error when ! has nothing after it")
+	}
+	if _, err := Parse("Angular !React"); err == nil {
+		t.Fatal("expected an operator between Angular and !")
+	}
+}
+
 func TestRejectBareTermsAndBadOps(t *testing.T) {
 	if _, err := Parse("Senior Angular"); err == nil {
 		t.Fatal("expected error without an operator")

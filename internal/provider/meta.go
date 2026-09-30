@@ -48,6 +48,7 @@ func ParseTime(s string) time.Time {
 		"Mon, 02 Jan 2006 15:04:05 -0700",
 		"2006-01-02",
 		"2006-01-02T15:04:05",
+		"02 Jan 2006 15:04:05 -0700",
 	} {
 		if t, err := time.Parse(layout, s); err == nil {
 			return t

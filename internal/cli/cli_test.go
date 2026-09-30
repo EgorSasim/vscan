@@ -58,6 +58,29 @@ func TestEveryRequiresScanner(t *testing.T) {
 	}
 }
 
+func TestWhereAndMaxAge(t *testing.T) {
+	opt, err := Parse([]string{"Go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opt.MaxAgeDays != 0 || !opt.Wants("sites") || !opt.Wants("telegram") || opt.WhereSet {
+		t.Fatalf("%#v", opt)
+	}
+	opt, err = Parse([]string{"--where", "telegram", "--max-age", "5", "Go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opt.MaxAgeDays != 5 || opt.Wants("sites") || !opt.Wants("telegram") {
+		t.Fatalf("%#v", opt)
+	}
+	if _, err := Parse([]string{"--where", "slack", "Go"}); err == nil {
+		t.Fatal("expected unknown place")
+	}
+	if _, err := Parse([]string{"--max-age", "0", "Go"}); err == nil {
+		t.Fatal("expected max-age to reject 0")
+	}
+}
+
 func TestFieldFlagsAndAlias(t *testing.T) {
 	opt, err := Parse([]string{"--company=TBank|AlfaBank", "--profession=myStack", "--platform=hh|habr"})
 	if err != nil {

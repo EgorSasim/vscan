@@ -16,6 +16,8 @@ import (
 	"vscan/internal/emit"
 	"vscan/internal/engine"
 	"vscan/internal/httpx"
+	"vscan/internal/provider"
+	"vscan/internal/provider/telegram"
 	"vscan/internal/query"
 	"vscan/internal/response"
 	"vscan/internal/sources"
@@ -176,6 +178,14 @@ func main() {
 		os.Exit(2)
 	}
 
+	if !opts.Wants("sites") && len(opts.Sources) > 0 {
+		fmt.Fprintln(os.Stderr, "vscan: --sources applies to site boards; --where does not include sites")
+		os.Exit(2)
+	}
+	if !opts.Wants("sites") && platformExpr != nil {
+		fmt.Fprintln(os.Stderr, "vscan: --platform applies to site boards; --where does not include sites")
+		os.Exit(2)
+	}
 	names := opts.Sources
 	if len(names) == 0 {
 		names = append([]string{}, sources.Names...)
@@ -188,15 +198,24 @@ func main() {
 		}
 	}
 	client := httpx.New()
-	boards, err := sources.Build(client, names)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "vscan: %v\n", err)
-		os.Exit(2)
+	var boards []provider.Provider
+	if opts.Wants("sites") {
+		boards, err = sources.Build(client, names)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "vscan: %v\n", err)
+			os.Exit(2)
+		}
+	}
+	if opts.Wants("telegram") {
+		boards = append(boards, &telegram.Provider{HTTP: client})
 	}
 
 	var seen *store.Seen
 	if opts.Scanner {
 		key := append([]string{}, names...)
+		if opts.Wants("telegram") {
+			key = append(key, "telegram")
+		}
 		sort.Strings(key)
 		seen, err = store.OpenSeen(dirs, opts.SearchRecord(), key)
 		if err != nil {
@@ -240,6 +259,7 @@ func main() {
 		Providers:  boards,
 		Hints:      query.CollectHints(expr, professionExpr, companyExpr),
 		MaxPages:   opts.MaxPages,
+		MaxAge:     time.Duration(opts.MaxAgeDays) * 24 * time.Hour,
 		Out:        multi,
 		Seen:       seen,
 		Logf: func(format string, args ...any) {

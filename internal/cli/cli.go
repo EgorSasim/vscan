@@ -23,6 +23,9 @@ type Options struct {
 	Every         time.Duration
 	EverySet      bool
 	MaxPages      int
+	MaxAgeDays    int
+	Where         []string
+	WhereSet      bool
 	Listen        string
 	Webhook       string
 	Sources       []string
@@ -140,6 +143,27 @@ func Parse(args []string) (Options, error) {
 				return Options{}, fmt.Errorf("--max-pages: want a whole number, 0 means until the board stops")
 			}
 			opt.MaxPages = n
+		case a == "--where" || strings.HasPrefix(a, "--where="):
+			v, err := takeValue(args, &i, a, "--where")
+			if err != nil {
+				return Options{}, err
+			}
+			where, err := parseWhere(v)
+			if err != nil {
+				return Options{}, err
+			}
+			opt.Where = where
+			opt.WhereSet = true
+		case a == "--max-age" || strings.HasPrefix(a, "--max-age="):
+			v, err := takeValue(args, &i, a, "--max-age")
+			if err != nil {
+				return Options{}, err
+			}
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				return Options{}, fmt.Errorf("--max-age: want a whole number of days, at least 1")
+			}
+			opt.MaxAgeDays = n
 		case a == "--sources" || strings.HasPrefix(a, "--sources="):
 			v, err := takeValue(args, &i, a, "--sources")
 			if err != nil {
@@ -211,7 +235,43 @@ func Parse(args []string) (Options, error) {
 	if opt.Response && (opt.HasSearch() || opt.Scanner || opt.History) {
 		return Options{}, fmt.Errorf("--response does not run a search")
 	}
+	if !opt.WhereSet {
+		opt.Where = []string{"sites", "telegram"}
+	}
 	return opt, nil
+}
+
+func parseWhere(v string) ([]string, error) {
+	var out []string
+	seen := map[string]struct{}{}
+	for _, part := range strings.Split(v, ",") {
+		part = strings.ToLower(strings.TrimSpace(part))
+		if part == "" {
+			continue
+		}
+		if part != "sites" && part != "telegram" {
+			return nil, fmt.Errorf("--where: unknown place %q (sites, telegram)", part)
+		}
+		if _, ok := seen[part]; ok {
+			continue
+		}
+		seen[part] = struct{}{}
+		out = append(out, part)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("--where: list is empty (sites, telegram)")
+	}
+	return out, nil
+}
+
+// Wants reports whether this search should include sites or telegram.
+func (o Options) Wants(place string) bool {
+	for _, p := range o.Where {
+		if p == place {
+			return true
+		}
+	}
+	return false
 }
 
 // HasSearch reports whether a query or a field flag was given.
@@ -230,6 +290,12 @@ func (o Options) SearchRecord() string {
 	}
 	if o.Platform != "" {
 		parts = append(parts, "--platform="+quoteArg(o.Platform))
+	}
+	if o.WhereSet {
+		parts = append(parts, "--where="+strings.Join(o.Where, ","))
+	}
+	if o.MaxAgeDays > 0 {
+		parts = append(parts, fmt.Sprintf("--max-age=%d", o.MaxAgeDays))
 	}
 	if o.Query != "" {
 		parts = append(parts, quoteArg(o.Query))
@@ -458,9 +524,19 @@ An alias name expands in place of a word, including inside flags.
 --company matches the company name only (T-Bank matches TBank).
 --profession matches the title and skills, not the full description.
 --platform picks boards. A vacancy has one source, so list several with |.
+--where sites,telegram   where to search. Default is both.
+                         sites is the boards below. telegram is public
+                         previews of it_remote, remote_jobs_ru, itjobsfeed,
+                         devvacancy, remoteit, remoteok, java_vacancies,
+                         python_vacancies, qa_vacancies, devops_vacancies.
+--max-age 5              drop a vacancy published more than 5 days ago.
+                         Off unless the flag is set. A vacancy with no
+                         date is kept.
+
 Names: hh, habr, superjob, djinni, getmatch, geekjob, remoteok, wwr,
 arbeitnow, remotive, jobicy, himalayas, nomads, nofluff, landing, muse,
-fourday, jobspresso.
+fourday, jobspresso, trudvsem, hn, python, elixir, larajobs,
+golangprojects.
 With --sources, the result is the intersection of the two lists.
 
 Presets cover the usual spellings of a language or framework:

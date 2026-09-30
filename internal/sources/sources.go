@@ -10,21 +10,27 @@ import (
 	"vscan/internal/provider"
 	"vscan/internal/provider/arbeitnow"
 	"vscan/internal/provider/djinni"
+	"vscan/internal/provider/elixirjobs"
 	"vscan/internal/provider/fourday"
 	"vscan/internal/provider/geekjob"
 	"vscan/internal/provider/getmatch"
+	"vscan/internal/provider/golangprojects"
 	"vscan/internal/provider/habr"
 	"vscan/internal/provider/hh"
 	"vscan/internal/provider/himalayas"
+	"vscan/internal/provider/hn"
 	"vscan/internal/provider/jobicy"
 	"vscan/internal/provider/jobspresso"
 	"vscan/internal/provider/landing"
+	"vscan/internal/provider/larajobs"
 	"vscan/internal/provider/muse"
 	"vscan/internal/provider/nofluff"
 	"vscan/internal/provider/nomads"
+	"vscan/internal/provider/pythonjobs"
 	"vscan/internal/provider/remoteok"
 	"vscan/internal/provider/remotive"
 	"vscan/internal/provider/superjob"
+	"vscan/internal/provider/trudvsem"
 	"vscan/internal/provider/wwr"
 )
 
@@ -33,6 +39,8 @@ var Names = []string{
 	"hh", "habr", "superjob", "djinni", "getmatch", "geekjob",
 	"remoteok", "wwr", "arbeitnow", "remotive", "jobicy", "himalayas", "nomads",
 	"nofluff", "landing", "muse", "fourday", "jobspresso",
+	"trudvsem", "hn",
+	"python", "elixir", "larajobs", "golangprojects",
 }
 
 // Canonical returns the official id for a platform name.
@@ -89,6 +97,18 @@ func Build(client *httpx.Client, names []string) ([]provider.Provider, error) {
 			out = append(out, &fourday.Provider{HTTP: client})
 		case "jobspresso":
 			out = append(out, &jobspresso.Provider{HTTP: client})
+		case "trudvsem":
+			out = append(out, &trudvsem.Provider{HTTP: client})
+		case "hn":
+			out = append(out, &hn.Provider{HTTP: client})
+		case "python":
+			out = append(out, &pythonjobs.Provider{HTTP: client})
+		case "elixir":
+			out = append(out, &elixirjobs.Provider{HTTP: client})
+		case "larajobs":
+			out = append(out, &larajobs.Provider{HTTP: client})
+		case "golangprojects":
+			out = append(out, &golangprojects.Provider{HTTP: client})
 		default:
 			return nil, fmt.Errorf("unknown platform %q (available: %s)", name, strings.Join(Names, ", "))
 		}

@@ -17,8 +17,8 @@ func TestParseLinksSeparators(t *testing.T) {
 	if got[2].Apply || got[2].Problem == "" {
 		t.Fatalf("aggregator should be skipped: %#v", got[2])
 	}
-	extra := ParseLinks("https://nofluffjobs.com/job/go\nhttps://4dayweek.io/job/go\nhttps://www.themuse.com/jobs/acme/go\nhttps://landing.jobs/at/acme/go\nhttps://jobspresso.co/job/go/")
-	if len(extra) != 5 {
+	extra := ParseLinks("https://nofluffjobs.com/job/go\nhttps://4dayweek.io/job/go\nhttps://www.themuse.com/jobs/acme/go\nhttps://landing.jobs/at/acme/go\nhttps://jobspresso.co/job/go/\nhttps://trudvsem.ru/vacancy/card/1/abc\nhttps://news.ycombinator.com/item?id=3\nhttps://www.python.org/jobs/1/\nhttps://elixirjobs.net/offers/x\nhttps://larajobs.com/job/1\nhttps://www.golangprojects.com/job.html")
+	if len(extra) != 11 {
 		t.Fatalf("len %d", len(extra))
 	}
 	for _, link := range extra {

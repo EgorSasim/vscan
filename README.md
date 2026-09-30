@@ -221,7 +221,7 @@ Match the title and the skills. The full description is not searched by this fla
 
 Pick boards. A vacancy has one source, so list several with `|`. `&` on two board names almost never matches.
 
-Names, in any case: `hh`, `habr`, `superjob`, `djinni`, `getmatch`, `geekjob`, `remoteok`, `wwr`, `arbeitnow`, `remotive`, `jobicy`, `himalayas`, `nomads`, `nofluff`, `landing`, `muse`, `fourday`, `jobspresso`.
+Names, in any case: `hh`, `habr`, `superjob`, `djinni`, `getmatch`, `geekjob`, `remoteok`, `wwr`, `arbeitnow`, `remotive`, `jobicy`, `himalayas`, `nomads`, `nofluff`, `landing`, `muse`, `fourday`, `jobspresso`, `trudvsem`, `hn`, `python`, `elixir`, `larajobs`, `golangprojects`.
 
 An unknown name is exit 2 and the error lists the known names. Presets are not expanded. The board table is in [Boards](#5-boards).
 
@@ -248,6 +248,34 @@ Default, when the flag is omitted: every board in the table.
 ./bin/vscan --sources remoteok Go
 ```
 
+#### `--where LIST`
+
+Where to search. Comma-separated. Spaces around commas are ignored. Default, when the flag is omitted: `sites,telegram`.
+
+| Value | Meaning |
+| --- | --- |
+| `sites` | the job boards in [Boards](#5-boards) |
+| `telegram` | public Telegram channel previews |
+
+```bash
+./bin/vscan --where sites 'Angular&TypeScript'
+./bin/vscan --where=telegram 'Angular&TypeScript'
+./bin/vscan --where sites,telegram 'Angular&TypeScript'
+```
+
+`--sources` and `--platform` apply to site boards. They are an error when `--where` does not include `sites`. A `--platform` filter does not hide Telegram posts.
+
+The Telegram reader is `internal/provider/telegram`. It reads these public previews: `it_remote`, `remote_jobs_ru`, `itjobsfeed`, `devvacancy`, `remoteit`, `remoteok`, `java_vacancies`, `python_vacancies`, `qa_vacancies`, `devops_vacancies`. With `--max-pages 0` each channel stops after three preview pages. Delete that package and the telegram block in `cmd/vscan/main.go` to remove channel search.
+
+#### `--max-age N`
+
+Drop a vacancy published more than `N` days ago. `N` is a whole number, at least 1. The flag is off unless it is set. A vacancy with no publication date is kept, because its age is unknown.
+
+```bash
+./bin/vscan --max-age 5 'Angular&TypeScript'
+./bin/vscan --max-age=2 --where sites Go
+```
+
 #### `--max-pages N`
 
 How many pages to read from each board. `N` is a whole number, `0` or greater. Default `0`.
@@ -265,8 +293,8 @@ Safety caps when `N` is `0`, so a feed that never ends cannot run forever:
 | SuperJob HTML | 20 pages |
 | `djinni` | 10 pages |
 | `geekjob` | 30 pages |
-| `arbeitnow`, `himalayas`, `nofluff`, `landing`, `muse`, `fourday`, `jobspresso` | 5 pages |
-| `habr`, `remoteok`, `wwr`, `remotive`, `jobicy`, `nomads` | one payload. The flag does not add pages |
+| `arbeitnow`, `himalayas`, `nofluff`, `landing`, `muse`, `fourday`, `jobspresso`, `trudvsem` | 5 pages |
+| `habr`, `remoteok`, `wwr`, `remotive`, `jobicy`, `nomads`, `hn`, `python`, `elixir`, `larajobs`, `golangprojects` | one payload. The flag does not add pages |
 
 ```bash
 ./bin/vscan --max-pages 1 --sources remotive Go
@@ -542,6 +570,9 @@ Errors go to stderr as `vscan: ...` and exit 2 unless the table says otherwise.
 | `unknown flag --foo` | the flag is not in this section. Check the spelling |
 | `the query must be one argument; quote it` | two positional words. Quote the query |
 | `operator needs a word or a parenthesis after it` | `&&`, a trailing operator, a bare `!`, or a missing word |
+| `--where: unknown place` | the value is not `sites` or `telegram` |
+| `--max-age: want a whole number of days, at least 1` | the flag was `0` or not a number |
+| `--sources applies to site boards` | `--sources` was set with `--where telegram` |
 | doubled bar | `\|\|` has nothing between the two OR operators. The error is `\| needs a word or a parenthesis`. OR is one `\|` |
 | `unknown platform "linkedin"` | the name is not in the board list. The error prints the list |
 | `no platform selected` | `--platform` and `--sources` do not overlap |
@@ -738,13 +769,19 @@ The names are fixed. Any other `--platform` value is an error.
 | `muse` | The Muse, software engineering |
 | `fourday` | 4dayweek.io |
 | `jobspresso` | Jobspresso jobs RSS |
+| `trudvsem` | Работа в России, open-data API |
+| `hn` | Hacker News job stories |
+| `python` | Python.org jobs RSS |
+| `elixir` | Elixir Jobs RSS |
+| `larajobs` | LaraJobs RSS |
+| `golangprojects` | Golangprojects RSS |
 
 ```bash
 ./bin/vscan --platform='hh|habr|remotive|nofluff' --profession='Angular|TypeScript'
 ./bin/vscan --sources hh,habr,nofluff,landing 'Senior&Angular'
 ```
 
-`--sources` and `--platform` use this table. `nofluff`, `landing`, `muse`, `fourday`, and `jobspresso` are valid in both. The Muse feed is the Software Engineering category. NoFluffJobs, The Muse, 4dayweek, and Jobspresso walk pages; with `--max-pages 0` each stops after five pages. Landing.jobs stops when its list ends, with the same five-page ceiling.
+`--sources` and `--platform` use this table. `nofluff`, `landing`, `muse`, `fourday`, `jobspresso`, `trudvsem`, `hn`, `python`, `elixir`, `larajobs`, and `golangprojects` are valid in both. The Muse feed is the Software Engineering category. NoFluffJobs, The Muse, 4dayweek, Jobspresso, and Работа в России walk pages; with `--max-pages 0` each stops after five pages. Landing.jobs stops when its list ends, with the same five-page ceiling. Hacker News is one list of current job posts. A post with no link of its own uses the Hacker News item URL. Python.org, Elixir Jobs, LaraJobs, and Golangprojects are one RSS payload each. LaraJobs often leaves the description empty, so the title, company, and tags are what the query sees.
 
 When both `--platform` and `--sources` are set, the result is their intersection. vscan does not bypass a login or a captcha. An empty or blocked page is an error on stderr.
 

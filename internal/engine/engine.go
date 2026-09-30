@@ -28,10 +28,13 @@ type Config struct {
 	Providers  []provider.Provider
 	Hints      []string
 	MaxPages   int
-	Out        emit.Emitter
-	Seen       *store.Seen
-	Logf       func(string, ...any)
-	Progress   func(string, ...any)
+	// MaxAge drops a vacancy whose publication date is older than this.
+	// Zero means the date is not checked. A vacancy with no date stays.
+	MaxAge   time.Duration
+	Out      emit.Emitter
+	Seen     *store.Seen
+	Logf     func(string, ...any)
+	Progress func(string, ...any)
 	// Replay emits the current matches on a scanner pass even when the
 	// seen-cache was empty. Set after --clear-cache.
 	Replay bool
@@ -211,14 +214,27 @@ func matches(cfg Config, v provider.Vacancy) bool {
 	if cfg.Profession != nil && !query.Match(cfg.Profession, professionDoc(v), cfg.Syn) {
 		return false
 	}
-	if cfg.Platform != nil && !query.Match(cfg.Platform, v.Source, cfg.Syn) {
+	if cfg.Platform != nil && v.Source != "telegram" && !query.Match(cfg.Platform, v.Source, cfg.Syn) {
+		return false
+	}
+	if !fresh(cfg, v) {
 		return false
 	}
 	return true
 }
 
+func fresh(cfg Config, v provider.Vacancy) bool {
+	if cfg.MaxAge <= 0 || v.Posted.IsZero() {
+		return true
+	}
+	return !v.Posted.Before(time.Now().Add(-cfg.MaxAge))
+}
+
 func worthFetch(cfg Config, v provider.Vacancy) bool {
-	if cfg.Platform != nil && !query.Match(cfg.Platform, v.Source, cfg.Syn) {
+	if !fresh(cfg, v) {
+		return false
+	}
+	if cfg.Platform != nil && v.Source != "telegram" && !query.Match(cfg.Platform, v.Source, cfg.Syn) {
 		return false
 	}
 	if cfg.Company != nil && strings.TrimSpace(v.Company) != "" && !query.Match(cfg.Company, companyDoc(v.Company), cfg.Syn) {

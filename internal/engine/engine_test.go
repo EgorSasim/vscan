@@ -212,3 +212,25 @@ func TestFieldFilters(t *testing.T) {
 		t.Fatalf("n=%d hits=%#v", n, out.hits)
 	}
 }
+
+func TestMaxAge(t *testing.T) {
+	expr, err := query.Parse("Angular")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{Expr: expr, MaxAge: 5 * 24 * time.Hour}
+	old := provider.Vacancy{Title: "Angular", Source: "hh", Posted: time.Now().Add(-10 * 24 * time.Hour)}
+	if matches(cfg, old) {
+		t.Fatal("older than five days")
+	}
+	young := old
+	young.Posted = time.Now().Add(-24 * time.Hour)
+	if !matches(cfg, young) {
+		t.Fatal("one day old must stay")
+	}
+	unknown := old
+	unknown.Posted = time.Time{}
+	if !matches(cfg, unknown) {
+		t.Fatal("a missing date is not treated as old")
+	}
+}

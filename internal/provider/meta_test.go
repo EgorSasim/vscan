@@ -33,4 +33,8 @@ func TestAgeAndSalary(t *testing.T) {
 	if got.IsZero() || got.Year() != 2026 {
 		t.Fatal(got)
 	}
+	elixir := ParseTime("14 Sep 2026 21:47:44 +0000")
+	if elixir.IsZero() || elixir.Day() != 14 {
+		t.Fatal(elixir)
+	}
 }

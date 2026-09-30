@@ -48,19 +48,19 @@ func (p *Provider) Search(ctx context.Context, hints []string, maxPages int, emi
 func parse(body []byte) ([]provider.Vacancy, error) {
 	var raw struct {
 		Jobs []struct {
-			URL         string   `json:"url"`
-			Title       string   `json:"jobTitle"`
-			Company     string   `json:"companyName"`
-			Description string   `json:"jobDescription"`
-			Excerpt     string   `json:"jobExcerpt"`
-			Geo         string   `json:"jobGeo"`
-			Level       string   `json:"jobLevel"`
-			Type        string   `json:"jobType"`
-			Published   string   `json:"pubDate"`
-			SalaryMin   *float64 `json:"salaryMin"`
-			SalaryMax   *float64 `json:"salaryMax"`
-			Currency    string   `json:"salaryCurrency"`
-			Period      string   `json:"salaryPeriod"`
+			URL         string       `json:"url"`
+			Title       string       `json:"jobTitle"`
+			Company     string       `json:"companyName"`
+			Description string       `json:"jobDescription"`
+			Excerpt     string       `json:"jobExcerpt"`
+			Geo         string       `json:"jobGeo"`
+			Level       string       `json:"jobLevel"`
+			Type        stringOrList `json:"jobType"`
+			Published   string       `json:"pubDate"`
+			SalaryMin   *float64     `json:"salaryMin"`
+			SalaryMax   *float64     `json:"salaryMax"`
+			Currency    string       `json:"salaryCurrency"`
+			Period      string       `json:"salaryPeriod"`
 		} `json:"jobs"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
@@ -79,8 +79,10 @@ func parse(body []byte) ([]provider.Vacancy, error) {
 		if it.Level != "" {
 			tags = append(tags, it.Level)
 		}
-		if it.Type != "" {
-			tags = append(tags, it.Type)
+		for _, kind := range it.Type {
+			if kind != "" {
+				tags = append(tags, kind)
+			}
 		}
 		out = append(out, provider.Vacancy{
 			URL:         it.URL,
@@ -96,4 +98,30 @@ func parse(body []byte) ([]provider.Vacancy, error) {
 		})
 	}
 	return out, nil
+}
+
+// stringOrList accepts a JSON string or an array of strings.
+// Jobicy sends jobType as an array; older payloads used one string.
+type stringOrList []string
+
+func (s *stringOrList) UnmarshalJSON(b []byte) error {
+	if string(b) == "null" {
+		*s = nil
+		return nil
+	}
+	var one string
+	if err := json.Unmarshal(b, &one); err == nil {
+		if one == "" {
+			*s = nil
+			return nil
+		}
+		*s = []string{one}
+		return nil
+	}
+	var many []string
+	if err := json.Unmarshal(b, &many); err != nil {
+		return err
+	}
+	*s = many
+	return nil
 }

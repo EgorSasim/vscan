@@ -59,11 +59,11 @@ func TestEveryRequiresScanner(t *testing.T) {
 }
 
 func TestFieldFlagsAndAlias(t *testing.T) {
-	opt, err := Parse([]string{"--company=TBank||AlfaBank", "--profession=myStack", "--platform=hh||habr"})
+	opt, err := Parse([]string{"--company=TBank|AlfaBank", "--profession=myStack", "--platform=hh|habr"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if opt.Company != "TBank||AlfaBank" || opt.Profession != "myStack" || opt.Platform != "hh||habr" || opt.Query != "" {
+	if opt.Company != "TBank|AlfaBank" || opt.Profession != "myStack" || opt.Platform != "hh|habr" || opt.Query != "" {
 		t.Fatalf("%#v", opt)
 	}
 	rec := opt.SearchRecord()
@@ -78,8 +78,8 @@ func TestFieldFlagsAndAlias(t *testing.T) {
 	if again.Company != opt.Company || again.Profession != opt.Profession || again.Platform != opt.Platform {
 		t.Fatalf("roundtrip %#v from %q", again, rec)
 	}
-	set, err := Parse([]string{"alias", "myStack=Angular||TS"})
-	if err != nil || set.AliasName != "myStack" || set.AliasValue != "Angular||TS" {
+	set, err := Parse([]string{"alias", "myStack=Angular|TS"})
+	if err != nil || set.AliasName != "myStack" || set.AliasValue != "Angular|TS" {
 		t.Fatalf("%#v %v", set, err)
 	}
 	list, err := Parse([]string{"alias"})

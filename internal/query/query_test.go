@@ -54,7 +54,7 @@ func TestMixedChainModes(t *testing.T) {
 }
 
 func TestOrPrecedence(t *testing.T) {
-	e := mustParse(t, "Senior&Angular||React")
+	e := mustParse(t, "Senior&Angular|React")
 	if !Match(e, "React developer", nil) {
 		t.Fatal("OR branch React")
 	}
@@ -71,7 +71,7 @@ func TestOrPrecedence(t *testing.T) {
 }
 
 func TestParentheses(t *testing.T) {
-	e := mustParse(t, "(Senior||Lead)&Angular")
+	e := mustParse(t, "(Senior|Lead)&Angular")
 	if !Match(e, "Lead Angular developer", nil) {
 		t.Fatal("Lead Angular")
 	}
@@ -122,8 +122,11 @@ func TestRejectBareTermsAndBadOps(t *testing.T) {
 	if _, err := Parse("Senior Angular"); err == nil {
 		t.Fatal("expected error without an operator")
 	}
-	if _, err := Parse("Senior|Angular"); err == nil {
-		t.Fatal("expected error on single bar")
+	if _, err := Parse("Senior||Angular"); err == nil {
+		t.Fatal("expected error on a doubled bar")
+	}
+	if e := mustParse(t, "Senior|Angular"); !Match(e, "Angular developer", nil) {
+		t.Fatal("single bar is OR")
 	}
 	if _, err := Parse(""); err == nil {
 		t.Fatal("expected empty error")

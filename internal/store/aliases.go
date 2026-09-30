@@ -114,7 +114,7 @@ func (a *Aliases) read() ([]string, error) {
 		name = strings.TrimSpace(name)
 		body = strings.TrimSpace(body)
 		if !ok || !aliasName.MatchString(name) || body == "" {
-			return nil, fmt.Errorf("%s:%d: expected a line like myStack=Angular||TS", a.path, n+1)
+			return nil, fmt.Errorf("%s:%d: expected a line like myStack=Angular|TS", a.path, n+1)
 		}
 		out = append(out, name+"="+body)
 	}

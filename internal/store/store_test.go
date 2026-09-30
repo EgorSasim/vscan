@@ -9,7 +9,7 @@ import (
 func TestHistoryPushMovesDuplicateToTop(t *testing.T) {
 	d := Dirs{Data: t.TempDir()}
 	h := OpenHistory(d)
-	for _, q := range []string{"A&B", "C||D", "A&B"} {
+	for _, q := range []string{"A&B", "C|D", "A&B"} {
 		if err := h.Push(q); err != nil {
 			t.Fatal(err)
 		}
@@ -18,11 +18,11 @@ func TestHistoryPushMovesDuplicateToTop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(lines) != 2 || lines[0] != "A&B" || lines[1] != "C||D" {
+	if len(lines) != 2 || lines[0] != "A&B" || lines[1] != "C|D" {
 		t.Fatalf("history = %#v", lines)
 	}
 	got, err := h.Get(2)
-	if err != nil || got != "C||D" {
+	if err != nil || got != "C|D" {
 		t.Fatalf("get 2 = %q %v", got, err)
 	}
 	if _, err := h.Get(3); err == nil {
@@ -95,14 +95,14 @@ func TestClearSeen(t *testing.T) {
 
 func TestAliasesSetListDelete(t *testing.T) {
 	a := OpenAliases(Dirs{Config: t.TempDir()})
-	if err := a.Set("myStack", "Angular||TS"); err != nil {
+	if err := a.Set("myStack", "Angular|TS"); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.Set("myStack", "Angular||Typescript||JS"); err != nil {
+	if err := a.Set("myStack", "Angular|Typescript|JS"); err != nil {
 		t.Fatal(err)
 	}
 	lines, err := a.List()
-	if err != nil || len(lines) != 1 || lines[0] != "myStack=Angular||Typescript||JS" {
+	if err != nil || len(lines) != 1 || lines[0] != "myStack=Angular|Typescript|JS" {
 		t.Fatalf("%#v %v", lines, err)
 	}
 	if err := a.Delete("missing"); err == nil {

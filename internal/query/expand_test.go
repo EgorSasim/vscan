@@ -4,13 +4,13 @@ import "testing"
 
 func TestExpandAlias(t *testing.T) {
 	aliases := map[string]string{
-		"myStack": "Angular||Typescript||JavaScript||JS||TS",
+		"myStack": "Angular|Typescript|JavaScript|JS|TS",
 	}
 	got, err := Expand("Senior&myStack", aliases)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "Senior&(Angular||Typescript||JavaScript||JS||TS)" {
+	if got != "Senior&(Angular|Typescript|JavaScript|JS|TS)" {
 		t.Fatalf("got %q", got)
 	}
 	e, err := Parse(got)
@@ -40,11 +40,11 @@ func TestPresetsExpand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "(Golang||Go)" {
+	if got != "(Golang|Go)" {
 		t.Fatalf("got %q", got)
 	}
 	got, err = ExpandPresets("angular", nil)
-	if err != nil || got != "(Angular||AngularJS)" {
+	if err != nil || got != "(Angular|AngularJS)" {
 		t.Fatalf("got %q %v", got, err)
 	}
 	got, err = ExpandPresets(`"Go"`, nil)
@@ -52,7 +52,7 @@ func TestPresetsExpand(t *testing.T) {
 		t.Fatalf("quoted got %q %v", got, err)
 	}
 	got, err = ExpandPresets("Senior&Go", nil)
-	if err != nil || got != "Senior&(Golang||Go)" {
+	if err != nil || got != "Senior&(Golang|Go)" {
 		t.Fatalf("mixed got %q %v", got, err)
 	}
 	got, err = ExpandPresets("Go", map[string]string{"go": "OnlyThisWord"})

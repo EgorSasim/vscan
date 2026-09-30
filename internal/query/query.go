@@ -1,13 +1,13 @@
 // Package query parses the vacancy search language and matches it against text.
 //
-// Operators, longest match first: &|  ||  &
-// & and &| bind tighter than ||. Parentheses group.
+// Operators, longest match first: &|  |  &
+// & and &| bind tighter than |. Parentheses group.
 // The operator to the left of a word sets its mode. The first word takes the
 // mode of the first operator.
 //
 //	&   literal whole word, case-insensitive, no synonyms
 //	&|  smart: case-insensitive, ё=е, word or prefix, synonyms, light plurals
-//	||  either branch
+//	|   either branch
 package query
 
 import (
@@ -466,9 +466,9 @@ func lex(input string) ([]token, error) {
 		case strings.HasPrefix(s[i:], "&|"):
 			toks = append(toks, token{kind: tokSmart, text: "&|"})
 			i += 2
-		case strings.HasPrefix(s[i:], "||"):
-			toks = append(toks, token{kind: tokOr, text: "||"})
-			i += 2
+		case s[i] == '|':
+			toks = append(toks, token{kind: tokOr, text: "|"})
+			i++
 		case s[i] == '&':
 			toks = append(toks, token{kind: tokAnd, text: "&"})
 			i++
@@ -488,12 +488,10 @@ func lex(input string) ([]token, error) {
 			}
 			toks = append(toks, token{kind: tokTerm, text: text})
 			i = next
-		case s[i] == '|':
-			return nil, fmt.Errorf("single \"|\"; write || for OR")
 		default:
 			j := i
 			for j < len(s) {
-				if strings.HasPrefix(s[j:], "&|") || strings.HasPrefix(s[j:], "||") || s[j] == '&' || s[j] == '|' || s[j] == '(' || s[j] == ')' || s[j] == '"' {
+				if strings.HasPrefix(s[j:], "&|") || s[j] == '&' || s[j] == '|' || s[j] == '(' || s[j] == ')' || s[j] == '"' {
 					break
 				}
 				rr, sz := utf8.DecodeRuneInString(s[j:])
@@ -563,7 +561,7 @@ func (p *parser) parseOr() (Expr, error) {
 			return nil, err
 		}
 		if right == nil {
-			return nil, fmt.Errorf("|| needs a word or a parenthesis")
+			return nil, fmt.Errorf("| needs a word or a parenthesis")
 		}
 		left = &orExpr{left: left, right: right}
 	}

@@ -426,28 +426,30 @@ Usage:
 
 The query is one argument. Operators may have spaces around them:
   Senior&Angular             both words, whole word, no synonyms
-  Senior||Angular            either word is enough
+  Senior|Angular             either word is enough
   Senior&|Angular&|Remote    smart AND: case-insensitive, a word or a
                              prefix (Angular matches AngularJS), synonyms
                              (remote matches relocate and wfh), and the
                              word may be in the title or the description
   Senior&Angular&|Remote     Senior and Angular are literal, Remote uses synonyms
-  (Senior||Lead)&Angular     parentheses; & and &| bind tighter than ||
+  (Senior|Lead)&Angular      parentheses; & and &| bind tighter than |
   "remote work"              a quoted phrase
 
 One word with no operator is a literal search. Several words with no
-operator are an error: join them with &, &|, or ||. A single | is an error.
+operator are an error: join them with &, &|, or |. Two bars in a row
+(||) are an error: OR is one |. Quote a query that contains |, or the
+shell treats it as a pipe.
 
 Field flags use the same operators. Every flag that is set must match.
 An alias name expands in place of a word, including inside flags.
 
-  --company=TBank||AlfaBank
-  --profession=Angular||AngularJS||TS||Typescript||JavaScript
-  --platform=hh||habr
+  --company=TBank|AlfaBank
+  --profession=Angular|AngularJS|TS|Typescript|JavaScript
+  --platform=hh|habr
 
 --company matches the company name only (T-Bank matches TBank).
 --profession matches the title and skills, not the full description.
---platform picks boards. A vacancy has one source, so list several with ||.
+--platform picks boards. A vacancy has one source, so list several with |.
 Names: hh, habr, superjob, djinni, getmatch, geekjob, remoteok, wwr,
 arbeitnow, remotive, jobicy, himalayas, nomads, nofluff, landing, muse,
 fourday, jobspresso.
@@ -463,7 +465,7 @@ Go matches Golang, Angular matches AngularJS. A user alias with the
 same name wins. Quote a name to keep that word only: "Go".
 
 Aliases:
-  vscan alias myStack='Angular||Typescript||JavaScript||JS||TS||React'
+  vscan alias myStack='Angular|Typescript|JavaScript|JS|TS|React'
   vscan alias
   vscan alias --delete myStack
 

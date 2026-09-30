@@ -36,9 +36,6 @@ func expand(input string, aliases map[string]string, presets bool, stack []strin
 		case strings.HasPrefix(s[i:], "&|"):
 			b.WriteString("&|")
 			i += 2
-		case strings.HasPrefix(s[i:], "||"):
-			b.WriteString("||")
-			i += 2
 		case s[i] == '&' || s[i] == '|' || s[i] == '(' || s[i] == ')':
 			b.WriteByte(s[i])
 			i++
@@ -52,7 +49,7 @@ func expand(input string, aliases map[string]string, presets bool, stack []strin
 		default:
 			j := i
 			for j < len(s) {
-				if strings.HasPrefix(s[j:], "&|") || strings.HasPrefix(s[j:], "||") || s[j] == '&' || s[j] == '|' || s[j] == '(' || s[j] == ')' || s[j] == '"' {
+				if strings.HasPrefix(s[j:], "&|") || s[j] == '&' || s[j] == '|' || s[j] == '(' || s[j] == ')' || s[j] == '"' {
 					break
 				}
 				rr, sz := utf8.DecodeRuneInString(s[j:])

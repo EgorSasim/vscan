@@ -180,15 +180,15 @@ func TestDetailFetchWhenSnippetIsNotEnough(t *testing.T) {
 }
 
 func TestFieldFilters(t *testing.T) {
-	company, err := query.Parse("TBank||AlfaBank")
+	company, err := query.Parse("TBank|AlfaBank")
 	if err != nil {
 		t.Fatal(err)
 	}
-	profession, err := query.Parse("Angular||Typescript")
+	profession, err := query.Parse("Angular|Typescript")
 	if err != nil {
 		t.Fatal(err)
 	}
-	platform, err := query.Parse("hh||habr")
+	platform, err := query.Parse("hh|habr")
 	if err != nil {
 		t.Fatal(err)
 	}

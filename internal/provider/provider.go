@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // Vacancy is one opening. Description, skills and tags are all searched.
@@ -16,6 +17,11 @@ type Vacancy struct {
 	Description string
 	Skills      []string
 	Tags        []string
+	// Remote is "yes", "no", or empty when the board did not say.
+	Remote   string
+	Location string
+	Salary   string
+	Posted   time.Time
 }
 
 // Document is the text the query matcher sees.

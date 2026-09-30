@@ -91,6 +91,12 @@ func parse(body []byte, origin string) ([]provider.Vacancy, int, int, error) {
 			Locations []struct {
 				Format string `json:"format"`
 			} `json:"location_requirements"`
+			Published string `json:"published_at"`
+			Salary    *struct {
+				From     *float64 `json:"from"`
+				To       *float64 `json:"to"`
+				Currency string   `json:"currency"`
+			} `json:"salary"`
 		} `json:"offers"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
@@ -102,10 +108,18 @@ func parse(body []byte, origin string) ([]provider.Vacancy, int, int, error) {
 			continue
 		}
 		var tags []string
+		remote := ""
 		for _, loc := range o.Locations {
 			if loc.Format != "" {
 				tags = append(tags, loc.Format)
 			}
+			if strings.EqualFold(loc.Format, "remote") {
+				remote = "yes"
+			}
+		}
+		salary := ""
+		if o.Salary != nil {
+			salary = provider.FormatMoney(o.Salary.From, o.Salary.To, o.Salary.Currency, "")
 		}
 		out = append(out, provider.Vacancy{
 			URL:         provider.Abs(origin, o.URL),
@@ -114,6 +128,9 @@ func parse(body []byte, origin string) ([]provider.Vacancy, int, int, error) {
 			Source:      "getmatch",
 			Description: htmlutil.Text(o.Offer + " " + o.DescriptionHTML),
 			Tags:        tags,
+			Remote:      remote,
+			Salary:      salary,
+			Posted:      provider.ParseTime(o.Published),
 		})
 	}
 	return out, raw.Meta.Total, len(raw.Offers), nil

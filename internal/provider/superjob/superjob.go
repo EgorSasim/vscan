@@ -185,6 +185,12 @@ func (p *Provider) detail(ctx context.Context, v provider.Vacancy) (provider.Vac
 		if job.URL != "" {
 			v.URL = job.URL
 		}
+		if v.Posted.IsZero() {
+			v.Posted = provider.ParseTime(job.Date)
+		}
+		if v.Location == "" {
+			v.Location = job.Location
+		}
 	}
 	return v, nil
 }

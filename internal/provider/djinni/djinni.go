@@ -76,7 +76,7 @@ func (p *Provider) searchHint(ctx context.Context, hint string, maxPages int, em
 		}
 		if len(bytes.TrimSpace(body)) == 0 {
 			if page == 1 {
-				return fmt.Errorf("пустой ответ, площадка закрыла выдачу")
+				return fmt.Errorf("empty response, the board blocked the listing")
 			}
 			return nil
 		}

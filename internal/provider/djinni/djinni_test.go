@@ -45,7 +45,7 @@ func TestEmptyBody(t *testing.T) {
 	defer srv.Close()
 	p := &Provider{HTTP: &httpx.Client{HTTP: srv.Client()}, Base: srv.URL}
 	err := p.Search(context.Background(), []string{"go"}, 1, func(provider.Listing) {})
-	if err == nil || !strings.Contains(err.Error(), "пустой") {
+	if err == nil || !strings.Contains(err.Error(), "empty") {
 		t.Fatalf("err = %v", err)
 	}
 }

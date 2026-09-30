@@ -12,17 +12,23 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 )
 
-// Hit is one matching vacancy.
+// Hit is one matching vacancy. Empty optional fields are left out of JSON.
 type Hit struct {
-	URL     string `json:"url"`
-	Title   string `json:"title"`
-	Company string `json:"company"`
-	Source  string `json:"source"`
+	URL      string `json:"url"`
+	Title    string `json:"title,omitempty"`
+	Company  string `json:"company,omitempty"`
+	Source   string `json:"source,omitempty"`
+	Remote   string `json:"remote,omitempty"`
+	Location string `json:"location,omitempty"`
+	Salary   string `json:"salary,omitempty"`
+	Posted   string `json:"posted,omitempty"`
+	Age      string `json:"age,omitempty"`
 }
 
 // Emitter receives hits. Emit must be safe for concurrent use.
@@ -38,14 +44,42 @@ func isPipe(err error) bool {
 }
 
 // Stdout writes one URL or one JSON object per line and flushes immediately.
+// Verbose prints a short block per vacancy instead of a bare URL.
 type Stdout struct {
-	w    *bufio.Writer
-	json bool
-	mu   sync.Mutex
+	w       *bufio.Writer
+	json    bool
+	verbose bool
+	mu      sync.Mutex
 }
 
-func NewStdout(w io.Writer, asJSON bool) *Stdout {
-	return &Stdout{w: bufio.NewWriter(w), json: asJSON}
+func NewStdout(w io.Writer, asJSON, verbose bool) *Stdout {
+	return &Stdout{w: bufio.NewWriter(w), json: asJSON, verbose: verbose}
+}
+
+func (h Hit) verboseText() string {
+	var b strings.Builder
+	b.WriteString(h.URL)
+	b.WriteByte('\n')
+	writeField(&b, "title", h.Title)
+	writeField(&b, "company", h.Company)
+	writeField(&b, "source", h.Source)
+	writeField(&b, "remote", h.Remote)
+	writeField(&b, "location", h.Location)
+	writeField(&b, "salary", h.Salary)
+	writeField(&b, "posted", h.Posted)
+	writeField(&b, "age", h.Age)
+	b.WriteByte('\n')
+	return b.String()
+}
+
+func writeField(b *strings.Builder, name, value string) {
+	if value == "" {
+		return
+	}
+	b.WriteString(name)
+	b.WriteString(": ")
+	b.WriteString(value)
+	b.WriteByte('\n')
 }
 
 func (s *Stdout) Emit(h Hit) error {
@@ -63,6 +97,8 @@ func (s *Stdout) Emit(h Hit) error {
 		if err == nil {
 			err = s.w.WriteByte('\n')
 		}
+	} else if s.verbose {
+		_, err = s.w.WriteString(h.verboseText())
 	} else {
 		_, err = s.w.WriteString(h.URL + "\n")
 	}

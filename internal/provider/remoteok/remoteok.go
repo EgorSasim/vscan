@@ -3,6 +3,8 @@ package remoteok
 import (
 	"context"
 	"encoding/json"
+	"strconv"
+	"time"
 
 	"vscan/internal/htmlutil"
 	"vscan/internal/provider"
@@ -60,6 +62,13 @@ func parse(body []byte) ([]provider.Vacancy, error) {
 		}
 		company, _ := item["company"].(string)
 		desc, _ := item["description"].(string)
+		location, _ := item["location"].(string)
+		posted := timeFrom(item["date"])
+		if posted.IsZero() {
+			posted = timeFrom(item["epoch"])
+		}
+		min, _ := item["salary_min"].(float64)
+		max, _ := item["salary_max"].(float64)
 		var tags []string
 		switch t := item["tags"].(type) {
 		case []any:
@@ -76,7 +85,28 @@ func parse(body []byte) ([]provider.Vacancy, error) {
 			Source:      "remoteok",
 			Description: htmlutil.Text(desc),
 			Tags:        append(tags, "remote"),
+			Remote:      "yes",
+			Location:    htmlutil.Text(location),
+			Salary:      provider.FormatSalary(int(min), int(max), "", ""),
+			Posted:      posted,
 		})
 	}
 	return out, nil
+}
+
+func timeFrom(v any) time.Time {
+	switch t := v.(type) {
+	case string:
+		return provider.ParseTime(t)
+	case float64:
+		return provider.UnixTime(int64(t))
+	case json.Number:
+		n, err := strconv.ParseInt(t.String(), 10, 64)
+		if err != nil {
+			return time.Time{}
+		}
+		return provider.UnixTime(n)
+	default:
+		return time.Time{}
+	}
 }

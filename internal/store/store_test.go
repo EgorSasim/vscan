@@ -66,3 +66,53 @@ func TestSeenAppendAndInitialEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestClearSeen(t *testing.T) {
+	d := Dirs{Cache: t.TempDir()}
+	s, err := OpenSeen(d, "Go", []string{"habr"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Add("https://example.com/1"); err != nil {
+		t.Fatal(err)
+	}
+	n, err := ClearSeen(d)
+	if err != nil || n != 1 {
+		t.Fatalf("cleared %d: %v", n, err)
+	}
+	again, err := OpenSeen(d, "Go", []string{"habr"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !again.InitialEmpty() || again.Has("https://example.com/1") {
+		t.Fatal("cache should be gone")
+	}
+	n, err = ClearSeen(d)
+	if err != nil || n != 0 {
+		t.Fatalf("second clear %d: %v", n, err)
+	}
+}
+
+func TestAliasesSetListDelete(t *testing.T) {
+	a := OpenAliases(Dirs{Config: t.TempDir()})
+	if err := a.Set("myStack", "Angular||TS"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Set("myStack", "Angular||Typescript||JS"); err != nil {
+		t.Fatal(err)
+	}
+	lines, err := a.List()
+	if err != nil || len(lines) != 1 || lines[0] != "myStack=Angular||Typescript||JS" {
+		t.Fatalf("%#v %v", lines, err)
+	}
+	if err := a.Delete("missing"); err == nil {
+		t.Fatal("expected missing alias")
+	}
+	if err := a.Delete("myStack"); err != nil {
+		t.Fatal(err)
+	}
+	lines, err = a.List()
+	if err != nil || len(lines) != 0 {
+		t.Fatalf("%#v %v", lines, err)
+	}
+}

@@ -11,7 +11,7 @@ import (
 
 func TestStdoutFlushesBeforeClose(t *testing.T) {
 	r, w := io.Pipe()
-	out := NewStdout(w, false)
+	out := NewStdout(w, false, false)
 	done := make(chan string, 1)
 	go func() {
 		buf := make([]byte, 64)
@@ -37,7 +37,7 @@ func TestStdoutFlushesBeforeClose(t *testing.T) {
 
 func TestStdoutJSON(t *testing.T) {
 	var b strings.Builder
-	out := NewStdout(&b, true)
+	out := NewStdout(&b, true, false)
 	if err := out.Emit(Hit{URL: "https://example.com/a", Title: "A & B", Company: "C", Source: "hh"}); err != nil {
 		t.Fatal(err)
 	}
@@ -46,9 +46,28 @@ func TestStdoutJSON(t *testing.T) {
 	}
 }
 
+func TestStdoutVerbose(t *testing.T) {
+	var b strings.Builder
+	out := NewStdout(&b, false, true)
+	err := out.Emit(Hit{
+		URL: "https://example.com/a", Title: "Go", Company: "Acme", Source: "habr",
+		Remote: "yes", Age: "2 days",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := b.String()
+	if !strings.Contains(got, "https://example.com/a\n") || !strings.Contains(got, "remote: yes\n") || !strings.Contains(got, "age: 2 days\n") {
+		t.Fatalf("verbose = %q", got)
+	}
+	if strings.Contains(got, "salary:") {
+		t.Fatal("empty salary")
+	}
+}
+
 func TestPipeError(t *testing.T) {
 	r, w := io.Pipe()
-	out := NewStdout(w, false)
+	out := NewStdout(w, false, false)
 	_ = r.Close()
 	err := out.Emit(Hit{URL: "https://example.com/a"})
 	if err != ErrPipe {

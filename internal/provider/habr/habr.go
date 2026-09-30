@@ -74,6 +74,7 @@ func (p *Provider) searchHint(ctx context.Context, hint string, emit func(provid
 			Company:     htmlutil.Text(it.Author),
 			Source:      "habr",
 			Description: htmlutil.Text(it.Description),
+			Posted:      provider.ParseTime(it.PubDate),
 		}
 		emit(provider.Listing{
 			Vacancy: v,
@@ -100,6 +101,12 @@ func (p *Provider) detail(ctx context.Context, v provider.Vacancy) (provider.Vac
 		if job.Description != "" {
 			v.Description = job.Description
 		}
+		if v.Posted.IsZero() {
+			v.Posted = provider.ParseTime(job.Date)
+		}
+		if v.Location == "" {
+			v.Location = job.Location
+		}
 	}
 	return v, nil
 }
@@ -116,6 +123,7 @@ type rssItem struct {
 	Description string `xml:"description"`
 	Link        string `xml:"link"`
 	Author      string `xml:"author"`
+	PubDate     string `xml:"pubDate"`
 }
 
 func parseRSS(body []byte) ([]rssItem, error) {

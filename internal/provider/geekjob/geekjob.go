@@ -128,8 +128,10 @@ func parse(body []byte, origin string) ([]provider.Vacancy, int, error) {
 			continue
 		}
 		var tags []string
+		remote := ""
 		if it.JobFormat.Remote {
 			tags = append(tags, "remote")
+			remote = "yes"
 		}
 		if it.JobFormat.Relocate {
 			tags = append(tags, "relocate")
@@ -140,6 +142,7 @@ func parse(body []byte, origin string) ([]provider.Vacancy, int, error) {
 			Company: htmlutil.Text(it.Company.Name),
 			Source:  "geekjob",
 			Tags:    tags,
+			Remote:  remote,
 		})
 	}
 	return out, raw.Nextpage, nil

@@ -41,6 +41,8 @@ type jobPosting struct {
 	Description string
 	Company     string
 	URL         string
+	Date        string
+	Location    string
 }
 
 // JobPosting finds the first schema.org JobPosting in JSON-LD blocks.
@@ -74,6 +76,8 @@ func walk(v any) (jobPosting, bool) {
 				Title:       asString(t["title"]),
 				Description: asString(t["description"]),
 				URL:         asString(t["url"]),
+				Date:        asString(t["datePosted"]),
+				Location:    place(t["jobLocation"]),
 			}
 			if org, ok := t["hiringOrganization"].(map[string]any); ok {
 				job.Company = asString(org["name"])
@@ -101,6 +105,23 @@ func isJobPosting(v any) bool {
 		}
 	}
 	return false
+}
+
+func place(v any) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	case map[string]any:
+		if s := asString(t["name"]); s != "" {
+			return s
+		}
+		if addr, ok := t["address"].(map[string]any); ok {
+			if s := asString(addr["addressLocality"]); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
 }
 
 func asString(v any) string {

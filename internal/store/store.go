@@ -79,7 +79,7 @@ func (h *History) Get(n int) (string, error) {
 		return "", err
 	}
 	if n < 1 || n > len(lines) {
-		return "", fmt.Errorf("в истории нет записи %d", n)
+		return "", fmt.Errorf("history has no entry %d", n)
 	}
 	return lines[n-1], nil
 }
@@ -88,7 +88,7 @@ func (h *History) Get(n int) (string, error) {
 func (h *History) Push(query string) error {
 	query = strings.TrimSpace(query)
 	if query == "" || strings.Contains(query, "\n") {
-		return fmt.Errorf("запрос для истории должен быть одной строкой")
+		return fmt.Errorf("history entry must be one line")
 	}
 	lines, err := h.List()
 	if err != nil {
@@ -189,4 +189,39 @@ func (s *Seen) Add(url string) error {
 	}
 	s.set[url] = struct{}{}
 	return nil
+}
+
+// ClearSeen deletes every remembered URL. History and aliases are kept.
+// The count is the number of links that were stored.
+func ClearSeen(d Dirs) (int, error) {
+	if d.Cache == "" {
+		d = DefaultDirs()
+	}
+	dir := filepath.Join(d.Cache, "seen")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	n := 0
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return 0, err
+		}
+		for _, line := range strings.Split(string(b), "\n") {
+			if strings.TrimSpace(line) != "" {
+				n++
+			}
+		}
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		return 0, err
+	}
+	return n, nil
 }

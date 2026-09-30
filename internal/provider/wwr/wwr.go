@@ -55,6 +55,7 @@ type rssDoc struct {
 			Link        string `xml:"link"`
 			Category    string `xml:"category"`
 			Region      string `xml:"region"`
+			PubDate     string `xml:"pubDate"`
 		} `xml:"item"`
 	} `xml:"channel"`
 }
@@ -78,6 +79,9 @@ func parse(body []byte) ([]provider.Vacancy, error) {
 			Source:      "wwr",
 			Description: htmlutil.Text(it.Description),
 			Tags:        []string{"remote", it.Category, it.Region},
+			Remote:      "yes",
+			Location:    htmlutil.Text(it.Region),
+			Posted:      provider.ParseTime(it.PubDate),
 		})
 	}
 	return out, nil

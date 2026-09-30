@@ -178,3 +178,37 @@ func TestDetailFetchWhenSnippetIsNotEnough(t *testing.T) {
 		t.Fatalf("n=%d err=%v", n, err)
 	}
 }
+
+func TestFieldFilters(t *testing.T) {
+	company, err := query.Parse("TBank||AlfaBank")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profession, err := query.Parse("Angular||Typescript")
+	if err != nil {
+		t.Fatal(err)
+	}
+	platform, err := query.Parse("hh||habr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := &memOut{}
+	prov := fake{name: "fake", items: []provider.Listing{
+		{Vacancy: provider.Vacancy{URL: "https://example.com/1", Title: "Frontend", Company: "T-Bank", Skills: []string{"Angular"}, Source: "hh"}},
+		{Vacancy: provider.Vacancy{URL: "https://example.com/2", Title: "Angular Developer", Company: "Acme", Source: "hh"}},
+		{Vacancy: provider.Vacancy{URL: "https://example.com/3", Title: "Angular Developer", Company: "Alfa-Bank", Source: "djinni", Description: "Angular"}},
+	}}
+	n, err := search(context.Background(), Config{
+		Company:    company,
+		Profession: profession,
+		Platform:   platform,
+		Providers:  []provider.Provider{prov},
+		Out:        out,
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 || out.hits[0].URL != "https://example.com/1" {
+		t.Fatalf("n=%d hits=%#v", n, out.hits)
+	}
+}

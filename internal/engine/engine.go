@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"vscan/internal/emit"
 	"vscan/internal/provider"
@@ -15,24 +17,32 @@ import (
 )
 
 // Config is one search pass.
+// Expr searches the whole vacancy. Company, Profession and Platform
+// search only that field. Every set expression must match.
 type Config struct {
-	Expr      query.Expr
-	Syn       *query.Synonyms
-	Providers []provider.Provider
-	Hints     []string
-	MaxPages  int
-	Out       emit.Emitter
-	Seen      *store.Seen
-	Logf      func(string, ...any)
-	Progress  func(string, ...any)
+	Expr       query.Expr
+	Company    query.Expr
+	Profession query.Expr
+	Platform   query.Expr
+	Syn        *query.Synonyms
+	Providers  []provider.Provider
+	Hints      []string
+	MaxPages   int
+	Out        emit.Emitter
+	Seen       *store.Seen
+	Logf       func(string, ...any)
+	Progress   func(string, ...any)
+	// Replay emits the current matches on a scanner pass even when the
+	// seen-cache was empty. Set after --clear-cache.
+	Replay bool
 }
 
 // Run repeats the search when Scanner is set.
 // The first pass is silent only when the seen-cache was empty at start.
 func Run(ctx context.Context, cfg Config, scanner bool, every time.Duration) int {
-	baseline := scanner && cfg.Seen != nil && cfg.Seen.InitialEmpty()
+	baseline := scanner && cfg.Seen != nil && cfg.Seen.InitialEmpty() && !cfg.Replay
 	if baseline && cfg.Progress != nil {
-		cfg.Progress("первый проход запоминает текущие ссылки, уведомления начнутся со следующего")
+		cfg.Progress("first pass only remembers current links; notifications start on the next pass")
 	}
 	for {
 		n, err := search(ctx, cfg, baseline)
@@ -53,9 +63,9 @@ func Run(ctx context.Context, cfg Config, scanner bool, every time.Duration) int
 		}
 		if cfg.Progress != nil {
 			if baseline {
-				cfg.Progress("база сохранена, дальше печатаются только новые ссылки")
+				cfg.Progress("baseline saved; later passes print only new links")
 			} else {
-				cfg.Progress("новых ссылок: %d, следующий проход через %s", n, every)
+				cfg.Progress("new links: %d, next pass in %s", n, every)
 			}
 		}
 		baseline = false
@@ -124,7 +134,7 @@ func search(ctx context.Context, cfg Config, baseline bool) (int, error) {
 					}
 					continue
 				}
-				if !query.Match(cfg.Expr, v.Document(), cfg.Syn) {
+				if !matches(cfg, v) {
 					continue
 				}
 				if err := sink.deliver(v); err != nil {
@@ -153,8 +163,9 @@ func search(ctx context.Context, cfg Config, baseline bool) (int, error) {
 			sink.mu.Unlock()
 			continue
 		}
-		matched := query.Match(cfg.Expr, l.Vacancy.Document(), cfg.Syn)
-		if matched || l.Fetch != nil {
+		matched := matches(cfg, l.Vacancy)
+		fetchable := l.Fetch != nil && worthFetch(cfg, l.Vacancy)
+		if matched || fetchable {
 			sink.reserved[url] = struct{}{}
 		}
 		sink.mu.Unlock()
@@ -169,7 +180,7 @@ func search(ctx context.Context, cfg Config, baseline bool) (int, error) {
 			}
 			continue
 		}
-		if l.Fetch != nil {
+		if fetchable {
 			select {
 			case <-ctx.Done():
 			case jobs <- l:
@@ -185,6 +196,66 @@ func search(ctx context.Context, cfg Config, baseline bool) (int, error) {
 		return n, pipe
 	}
 	return n, nil
+}
+
+func matches(cfg Config, v provider.Vacancy) bool {
+	if cfg.Expr == nil && cfg.Company == nil && cfg.Profession == nil && cfg.Platform == nil {
+		return false
+	}
+	if cfg.Expr != nil && !query.Match(cfg.Expr, v.Document(), cfg.Syn) {
+		return false
+	}
+	if cfg.Company != nil && !query.Match(cfg.Company, companyDoc(v.Company), cfg.Syn) {
+		return false
+	}
+	if cfg.Profession != nil && !query.Match(cfg.Profession, professionDoc(v), cfg.Syn) {
+		return false
+	}
+	if cfg.Platform != nil && !query.Match(cfg.Platform, v.Source, cfg.Syn) {
+		return false
+	}
+	return true
+}
+
+func worthFetch(cfg Config, v provider.Vacancy) bool {
+	if cfg.Platform != nil && !query.Match(cfg.Platform, v.Source, cfg.Syn) {
+		return false
+	}
+	if cfg.Company != nil && strings.TrimSpace(v.Company) != "" && !query.Match(cfg.Company, companyDoc(v.Company), cfg.Syn) {
+		return false
+	}
+	return true
+}
+
+func companyDoc(name string) string {
+	var flat strings.Builder
+	for _, r := range name {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			flat.WriteRune(r)
+		}
+	}
+	return name + "\n" + flat.String()
+}
+
+func professionDoc(v provider.Vacancy) string {
+	return v.Title + "\n" + strings.Join(v.Skills, " ")
+}
+
+func hitFrom(v provider.Vacancy, url string) emit.Hit {
+	h := emit.Hit{
+		URL:      url,
+		Title:    v.Title,
+		Company:  v.Company,
+		Source:   v.Source,
+		Remote:   v.DisplayRemote(),
+		Location: v.Location,
+		Salary:   v.Salary,
+	}
+	if !v.Posted.IsZero() {
+		h.Posted = v.Posted.UTC().Format(time.RFC3339)
+		h.Age = provider.Age(v.Posted, time.Now())
+	}
+	return h
 }
 
 type sink struct {
@@ -219,12 +290,7 @@ func (s *sink) deliver(v provider.Vacancy) error {
 	s.emitted[url] = struct{}{}
 	s.mu.Unlock()
 	if s.out != nil {
-		if err := s.out.Emit(emit.Hit{
-			URL:     url,
-			Title:   v.Title,
-			Company: v.Company,
-			Source:  v.Source,
-		}); err != nil {
+		if err := s.out.Emit(hitFrom(v, url)); err != nil {
 			s.mu.Lock()
 			delete(s.emitted, url)
 			s.mu.Unlock()
@@ -236,7 +302,7 @@ func (s *sink) deliver(v provider.Vacancy) error {
 	s.mu.Unlock()
 	if s.seen != nil {
 		if err := s.seen.Add(url); err != nil {
-			return fmt.Errorf("кэш: %w", err)
+			return fmt.Errorf("cache: %w", err)
 		}
 	}
 	return nil

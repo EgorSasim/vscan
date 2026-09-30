@@ -63,7 +63,7 @@ func (p *Provider) searchHint(ctx context.Context, hint string, maxPages int, em
 		u.RawQuery = q.Encode()
 		body, err := p.HTTP.Get(ctx, u.String(), p.headers())
 		if err != nil {
-			return fmt.Errorf("поиск: %w", err)
+			return fmt.Errorf("search: %w", err)
 		}
 		parsed, err := parseSearch(body)
 		if err != nil {
@@ -152,14 +152,38 @@ type item struct {
 		Requirement    string `json:"requirement"`
 		Responsibility string `json:"responsibility"`
 	} `json:"snippet"`
+	Published string `json:"published_at"`
+	Schedule  struct {
+		ID string `json:"id"`
+	} `json:"schedule"`
+	Area struct {
+		Name string `json:"name"`
+	} `json:"area"`
+	Salary *struct {
+		From     *float64 `json:"from"`
+		To       *float64 `json:"to"`
+		Currency string   `json:"currency"`
+	} `json:"salary"`
 }
 
 func (it item) vacancy() provider.Vacancy {
+	remote := ""
+	if it.Schedule.ID == "remote" {
+		remote = "yes"
+	}
+	salary := ""
+	if it.Salary != nil {
+		salary = provider.FormatMoney(it.Salary.From, it.Salary.To, it.Salary.Currency, "")
+	}
 	return provider.Vacancy{
-		URL:     it.AlternateURL,
-		Title:   htmlutil.Text(it.Name),
-		Company: htmlutil.Text(it.Employer.Name),
-		Source:  "hh",
+		URL:      it.AlternateURL,
+		Title:    htmlutil.Text(it.Name),
+		Company:  htmlutil.Text(it.Employer.Name),
+		Source:   "hh",
+		Remote:   remote,
+		Location: htmlutil.Text(it.Area.Name),
+		Salary:   salary,
+		Posted:   provider.ParseTime(it.Published),
 		Description: htmlutil.Text(strings.TrimSpace(
 			it.Snippet.Requirement + " " + it.Snippet.Responsibility,
 		)),
@@ -179,6 +203,18 @@ func parseSearch(body []byte) (searchPage, error) {
 				Requirement    string `json:"requirement"`
 				Responsibility string `json:"responsibility"`
 			} `json:"snippet"`
+			Published string `json:"published_at"`
+			Schedule  struct {
+				ID string `json:"id"`
+			} `json:"schedule"`
+			Area struct {
+				Name string `json:"name"`
+			} `json:"area"`
+			Salary *struct {
+				From     *float64 `json:"from"`
+				To       *float64 `json:"to"`
+				Currency string   `json:"currency"`
+			} `json:"salary"`
 		} `json:"items"`
 		Pages int `json:"pages"`
 	}
@@ -193,6 +229,10 @@ func parseSearch(body []byte) (searchPage, error) {
 			AlternateURL: it.AlternateURL,
 			Employer:     it.Employer,
 			Snippet:      it.Snippet,
+			Published:    it.Published,
+			Schedule:     it.Schedule,
+			Area:         it.Area,
+			Salary:       it.Salary,
 		})
 	}
 	return out, nil

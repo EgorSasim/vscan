@@ -8,18 +8,36 @@ import (
 
 	"vscan/internal/httpx"
 	"vscan/internal/provider"
+	"vscan/internal/provider/arbeitnow"
 	"vscan/internal/provider/djinni"
 	"vscan/internal/provider/geekjob"
 	"vscan/internal/provider/getmatch"
 	"vscan/internal/provider/habr"
 	"vscan/internal/provider/hh"
+	"vscan/internal/provider/himalayas"
+	"vscan/internal/provider/jobicy"
+	"vscan/internal/provider/nomads"
 	"vscan/internal/provider/remoteok"
+	"vscan/internal/provider/remotive"
 	"vscan/internal/provider/superjob"
 	"vscan/internal/provider/wwr"
 )
 
 // Names is the default source order.
-var Names = []string{"hh", "habr", "superjob", "djinni", "getmatch", "geekjob", "remoteok", "wwr"}
+var Names = []string{
+	"hh", "habr", "superjob", "djinni", "getmatch", "geekjob",
+	"remoteok", "wwr", "arbeitnow", "remotive", "jobicy", "himalayas", "nomads",
+}
+
+// Canonical returns the official id for a platform name.
+func Canonical(name string) (string, bool) {
+	for _, n := range Names {
+		if strings.EqualFold(n, name) {
+			return n, true
+		}
+	}
+	return "", false
+}
 
 // Build returns the named providers. An empty list means all of them.
 func Build(client *httpx.Client, names []string) ([]provider.Provider, error) {
@@ -45,8 +63,18 @@ func Build(client *httpx.Client, names []string) ([]provider.Provider, error) {
 			out = append(out, &remoteok.Provider{HTTP: client})
 		case "wwr":
 			out = append(out, &wwr.Provider{HTTP: client})
+		case "arbeitnow":
+			out = append(out, &arbeitnow.Provider{HTTP: client})
+		case "remotive":
+			out = append(out, &remotive.Provider{HTTP: client})
+		case "jobicy":
+			out = append(out, &jobicy.Provider{HTTP: client})
+		case "himalayas":
+			out = append(out, &himalayas.Provider{HTTP: client})
+		case "nomads":
+			out = append(out, &nomads.Provider{HTTP: client})
 		default:
-			return nil, fmt.Errorf("неизвестная площадка %q (доступны: %s)", name, strings.Join(Names, ", "))
+			return nil, fmt.Errorf("unknown platform %q (available: %s)", name, strings.Join(Names, ", "))
 		}
 	}
 	return out, nil

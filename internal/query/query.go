@@ -29,6 +29,7 @@ const (
 type Expr interface {
 	match(words []string, syn *Synonyms) bool
 	hints() []string
+	leaves() []string
 }
 
 type term struct {
@@ -57,10 +58,10 @@ func Parse(input string) (Expr, error) {
 		return nil, err
 	}
 	if p.peek().kind != tokEOF {
-		return nil, fmt.Errorf("лишние символы в запросе около %q", p.peek().text)
+		return nil, fmt.Errorf("trailing input near %q", p.peek().text)
 	}
 	if expr == nil {
-		return nil, fmt.Errorf("пустой запрос")
+		return nil, fmt.Errorf("empty query")
 	}
 	return expr, nil
 }
@@ -110,6 +111,8 @@ func (t *term) match(doc []string, syn *Synonyms) bool {
 
 func (t *term) hints() []string { return []string{t.raw} }
 
+func (t *term) leaves() []string { return []string{t.raw} }
+
 func (a *andExpr) match(doc []string, syn *Synonyms) bool {
 	for _, p := range a.parts {
 		if !p.match(doc, syn) {
@@ -117,6 +120,14 @@ func (a *andExpr) match(doc []string, syn *Synonyms) bool {
 		}
 	}
 	return true
+}
+
+func (a *andExpr) leaves() []string {
+	var out []string
+	for _, p := range a.parts {
+		out = append(out, p.leaves()...)
+	}
+	return out
 }
 
 func (a *andExpr) hints() []string {
@@ -159,6 +170,40 @@ func (o *orExpr) match(doc []string, syn *Synonyms) bool {
 
 func (o *orExpr) hints() []string {
 	return append(o.left.hints(), o.right.hints()...)
+}
+
+func (o *orExpr) leaves() []string {
+	return append(o.left.leaves(), o.right.leaves()...)
+}
+
+// Terms returns every word or phrase in the expression, in source order.
+func Terms(e Expr) []string {
+	if e == nil {
+		return nil
+	}
+	return e.leaves()
+}
+
+// CollectHints merges remote-search hints from several expressions, capped at 8.
+func CollectHints(exprs ...Expr) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, e := range exprs {
+		if e == nil {
+			continue
+		}
+		for _, h := range Hints(e) {
+			if _, ok := seen[h]; ok {
+				continue
+			}
+			seen[h] = struct{}{}
+			out = append(out, h)
+			if len(out) == 8 {
+				return out
+			}
+		}
+	}
+	return out
 }
 
 func matchLiteral(doc, phrase []string) bool {
@@ -301,7 +346,7 @@ func BuiltinSynonyms() *Synonyms {
 }
 
 // MergeFile overrides or adds groups from path.
-// A line looks like: remote = relocate, удалённо, wfh
+// A line looks like: remote = relocate, wfh
 // Missing file is not an error.
 func (s *Synonyms) MergeFile(path string) error {
 	b, err := os.ReadFile(path)
@@ -318,7 +363,7 @@ func (s *Synonyms) MergeFile(path string) error {
 		}
 		key, rest, ok := strings.Cut(line, "=")
 		if !ok {
-			return fmt.Errorf("%s:%d: нужна строка вида remote = relocate, wfh", path, n+1)
+			return fmt.Errorf("%s:%d: expected a line like remote = relocate, wfh", path, n+1)
 		}
 		parts := []string{key}
 		for _, p := range strings.Split(rest, ",") {
@@ -439,12 +484,12 @@ func lex(input string) ([]token, error) {
 				return nil, err
 			}
 			if strings.TrimSpace(text) == "" {
-				return nil, fmt.Errorf("пустая фраза в кавычках")
+				return nil, fmt.Errorf("empty quoted phrase")
 			}
 			toks = append(toks, token{kind: tokTerm, text: text})
 			i = next
 		case s[i] == '|':
-			return nil, fmt.Errorf("одиночный «|», для ИЛИ пишите ||")
+			return nil, fmt.Errorf("single \"|\"; write || for OR")
 		default:
 			j := i
 			for j < len(s) {
@@ -458,7 +503,7 @@ func lex(input string) ([]token, error) {
 				j += sz
 			}
 			if j == i {
-				return nil, fmt.Errorf("не понял символ %q", s[i:i+size])
+				return nil, fmt.Errorf("unexpected character %q", s[i:i+size])
 			}
 			toks = append(toks, token{kind: tokTerm, text: s[i:j]})
 			i = j
@@ -483,7 +528,7 @@ func readQuoted(s string, i int) (string, int, error) {
 		b.WriteByte(s[i])
 		i++
 	}
-	return "", 0, fmt.Errorf("не закрыта кавычка")
+	return "", 0, fmt.Errorf("unclosed quote")
 }
 
 type parser struct {
@@ -518,7 +563,7 @@ func (p *parser) parseOr() (Expr, error) {
 			return nil, err
 		}
 		if right == nil {
-			return nil, fmt.Errorf("после || нужно слово или скобка")
+			return nil, fmt.Errorf("|| needs a word or a parenthesis")
 		}
 		left = &orExpr{left: left, right: right}
 	}
@@ -536,7 +581,7 @@ func (p *parser) parseAnd() (Expr, error) {
 	}
 	p.next()
 	if first == nil {
-		return nil, fmt.Errorf("перед оператором нужно слово")
+		return nil, fmt.Errorf("operator needs a word before it")
 	}
 	parts := []Expr{tag(first, op == tokSmart)}
 	for {
@@ -545,7 +590,7 @@ func (p *parser) parseAnd() (Expr, error) {
 			return nil, err
 		}
 		if item == nil {
-			return nil, fmt.Errorf("после оператора нужно слово или скобка")
+			return nil, fmt.Errorf("operator needs a word or a parenthesis after it")
 		}
 		parts = append(parts, tag(item, op == tokSmart))
 		op = p.peek().kind
@@ -566,10 +611,10 @@ func (p *parser) parsePrimary() (Expr, error) {
 			return nil, err
 		}
 		if inner == nil {
-			return nil, fmt.Errorf("пустые скобки")
+			return nil, fmt.Errorf("empty parentheses")
 		}
 		if p.peek().kind != tokRParen {
-			return nil, fmt.Errorf("не закрыта скобка")
+			return nil, fmt.Errorf("unclosed parenthesis")
 		}
 		p.next()
 		return inner, nil
@@ -577,7 +622,7 @@ func (p *parser) parsePrimary() (Expr, error) {
 		t := p.next()
 		ws := words(t.text)
 		if len(ws) == 0 {
-			return nil, fmt.Errorf("пустое слово")
+			return nil, fmt.Errorf("empty word")
 		}
 		return &term{raw: t.text, words: ws}, nil
 	default:

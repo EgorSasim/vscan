@@ -1,4 +1,5 @@
-package provider
+// Package sources wires the concrete job boards without an import cycle.
+package sources
 
 import (
 	"fmt"
@@ -6,6 +7,7 @@ import (
 	"strings"
 
 	"vscan/internal/httpx"
+	"vscan/internal/provider"
 	"vscan/internal/provider/djinni"
 	"vscan/internal/provider/geekjob"
 	"vscan/internal/provider/getmatch"
@@ -20,11 +22,11 @@ import (
 var Names = []string{"hh", "habr", "superjob", "djinni", "getmatch", "geekjob", "remoteok", "wwr"}
 
 // Build returns the named providers. An empty list means all of them.
-func Build(client *httpx.Client, names []string) ([]Provider, error) {
+func Build(client *httpx.Client, names []string) ([]provider.Provider, error) {
 	if len(names) == 0 {
 		names = Names
 	}
-	var out []Provider
+	var out []provider.Provider
 	for _, name := range names {
 		switch name {
 		case "hh":

@@ -128,10 +128,11 @@ func search(ctx context.Context, cfg Config, baseline bool) (int, error) {
 					continue
 				}
 				if err := sink.deliver(v); err != nil {
-					logf("%v", err)
 					if errors.Is(err, emit.ErrPipe) {
 						cancel()
+						continue
 					}
+					logf("%v", err)
 				}
 			}
 		}()

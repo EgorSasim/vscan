@@ -50,7 +50,12 @@ func (p *Provider) Search(ctx context.Context, hints []string, maxPages int, emi
 }
 
 func (p *Provider) searchHint(ctx context.Context, hint string, maxPages int, emit func(provider.Listing)) error {
-	for page := 1; maxPages == 0 || page <= maxPages; page++ {
+	limit := maxPages
+	if limit == 0 {
+		// Guard for a feed that never reports the last page.
+		limit = 30
+	}
+	for page := 1; page <= limit; page++ {
 		u, err := url.Parse(p.base() + "/json/find/vacancy")
 		if err != nil {
 			return err

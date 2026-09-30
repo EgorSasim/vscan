@@ -69,9 +69,7 @@ func TestAPI(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if got.Title != "Golang" || !strings.Contains(got.Description, "remote") || lFetchSet(got) {
+	if got.Title != "Golang" || !strings.Contains(got.Description, "remote") {
 		t.Fatalf("%#v", got)
 	}
 }
-
-func lFetchSet(provider.Vacancy) bool { return false }

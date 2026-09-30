@@ -448,7 +448,7 @@ func lex(input string) ([]token, error) {
 		default:
 			j := i
 			for j < len(s) {
-				if strings.HasPrefix(s[j:], "&|") || strings.HasPrefix(s[j:], "||") || s[j] == '&' || s[j] == '(' || s[j] == ')' || s[j] == '"' {
+				if strings.HasPrefix(s[j:], "&|") || strings.HasPrefix(s[j:], "||") || s[j] == '&' || s[j] == '|' || s[j] == '(' || s[j] == ')' || s[j] == '"' {
 					break
 				}
 				rr, sz := utf8.DecodeRuneInString(s[j:])

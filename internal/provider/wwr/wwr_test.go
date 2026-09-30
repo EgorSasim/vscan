@@ -21,8 +21,8 @@ func TestParseItem(t *testing.T) {
 	var n int
 	err := p.Search(context.Background(), nil, 0, func(l provider.Listing) {
 		n++
-		if l.Company != "Toptal" || !strings.Contains(l.Title, "Angular") || !strings.Contains(l.Description, "Remote Angular") {
-			t.Fatalf("%#v", l)
+		if l.Vacancy.Company != "Toptal" || !strings.Contains(l.Vacancy.Title, "Angular") || !strings.Contains(l.Vacancy.Description, "Remote Angular") {
+			t.Fatalf("%#v", l.Vacancy)
 		}
 	})
 	if err != nil || n != 1 {

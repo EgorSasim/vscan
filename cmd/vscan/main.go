@@ -16,8 +16,8 @@ import (
 	"vscan/internal/emit"
 	"vscan/internal/engine"
 	"vscan/internal/httpx"
-	"vscan/internal/provider"
 	"vscan/internal/query"
+	"vscan/internal/sources"
 	"vscan/internal/store"
 )
 
@@ -90,12 +90,12 @@ func main() {
 		os.Exit(2)
 	}
 
-	sources := opts.Sources
-	if len(sources) == 0 {
-		sources = append([]string{}, provider.Names...)
+	names := opts.Sources
+	if len(names) == 0 {
+		names = append([]string{}, sources.Names...)
 	}
 	client := httpx.New()
-	boards, err := provider.Build(client, sources)
+	boards, err := sources.Build(client, names)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "vscan: %v\n", err)
 		os.Exit(2)
@@ -103,7 +103,7 @@ func main() {
 
 	var seen *store.Seen
 	if opts.Scanner {
-		key := append([]string{}, sources...)
+		key := append([]string{}, names...)
 		sort.Strings(key)
 		seen, err = store.OpenSeen(dirs, opts.Query, key)
 		if err != nil {

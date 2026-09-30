@@ -8,20 +8,22 @@ After `make build` every example below uses `./bin/vscan` from the project direc
 
 1. [Build](#1-build)
 2. [Run a search](#2-run-a-search)
-3. [Query language](#3-query-language)
-4. [Boards](#4-boards)
-5. [Verbose output and JSON](#5-verbose-output-and-json)
-6. [Cache](#6-cache)
-7. [Scanner](#7-scanner)
-8. [Receive scan results](#8-receive-scan-results)
-9. [Aliases](#9-aliases)
-10. [History](#10-history)
-11. [Exit codes](#11-exit-codes)
-12. [Files and environment](#12-files-and-environment)
+3. [Presets](#3-presets)
+4. [Query language](#4-query-language)
+5. [Boards](#5-boards)
+6. [Verbose output and JSON](#6-verbose-output-and-json)
+7. [Cache](#7-cache)
+8. [Scanner](#8-scanner)
+9. [Receive scan results](#9-receive-scan-results)
+10. [Aliases](#10-aliases)
+11. [History](#11-history)
+12. [Exit codes](#12-exit-codes)
+13. [Files and environment](#13-files-and-environment)
+14. [Auto-apply](#14-auto-apply)
 
 ## 1. Build
 
-Go 1.22 or newer. Cgo is not used. From the project directory:
+Go 1.26 or newer. Cgo is not used. From the project directory:
 
 ```bash
 go version
@@ -29,7 +31,13 @@ make build
 ./bin/vscan --help
 ```
 
-`make build` writes only `bin/vscan` inside the project. It does not copy the binary into `/usr/local`, `/Applications`, or `PATH`.
+`make build` passes `-tags noresponse`. That build tag leaves the auto-apply module out of the binary. The same flag is what you want on a VPS:
+
+```bash
+CGO_ENABLED=0 go build -tags noresponse -trimpath -ldflags="-s -w" -o bin/vscan ./cmd/vscan
+```
+
+`make build` writes only `bin/vscan` inside the project. It does not copy the binary into `/usr/local`, `/Applications`, or `PATH`. The personal binary with auto-apply is a different target, `make build-response` (`-tags response`), and it writes `bin/vscan-response`.
 
 Check the binary with a short live search:
 
@@ -68,7 +76,9 @@ A one-shot search prints current matches and exits. It does not read or write th
 
 ```bash
 ./bin/vscan --help
-./bin/vscan 'Senior&|Angular&|Remote'
+./bin/vscan Go
+./bin/vscan Angular
+./bin/vscan 'Senior&|React'
 ./bin/vscan 'Senior&Angular' | wc -l
 echo 'Senior&Angular' | ./bin/vscan
 ```
@@ -87,7 +97,125 @@ Stdout is one URL per line. Board errors go to stderr, and the other boards cont
 ./bin/vscan --no-history --max-pages 1 --sources remotive 'Go||Golang' | head -n 1
 ```
 
-## 3. Query language
+## 3. Presets
+
+A language or framework name is a preset. `./bin/vscan Go` searches for Golang and Go. `./bin/vscan Angular` searches for Angular and AngularJS. The same names expand inside a larger query and inside `--profession`:
+
+```bash
+./bin/vscan Go
+./bin/vscan angular
+./bin/vscan 'C++'
+./bin/vscan 'C#'
+./bin/vscan 'Senior&|React&|Remote'
+./bin/vscan --profession=TypeScript --platform='hh||habr'
+./bin/vscan presets
+```
+
+`./bin/vscan presets` prints every name and the query it becomes. Letter case does not matter. A quoted name stays one word: `./bin/vscan '"Go"'` searches for Go and does not add Golang. An alias with the same name replaces the preset.
+
+The matcher compares words, so `C++` and `C#` also match the word C, and `.NET` also matches the word net. The extra names (`CPP`, `CSharp`, `DotNet`) cover the spellings that are not punctuation.
+
+### Languages
+
+| Type any of | Search |
+| --- | --- |
+| `Go`, `Golang` | `Golang\|\|Go` |
+| `JavaScript`, `JS` | `JavaScript\|\|JS` |
+| `TypeScript`, `TS` | `TypeScript\|\|TS` |
+| `Python`, `Py` | `Python` |
+| `Java` | `Java` |
+| `Kotlin` | `Kotlin` |
+| `Swift` | `Swift` |
+| `Rust` | `Rust` |
+| `PHP` | `PHP` |
+| `Ruby` | `Ruby` |
+| `C` | `C` |
+| `C++`, `CPP`, `CPlusPlus` | `C++\|\|CPP\|\|CPlusPlus` |
+| `C#`, `CSharp` | `C#\|\|CSharp` |
+| `Scala` | `Scala` |
+| `Elixir` | `Elixir` |
+| `Clojure` | `Clojure` |
+| `Dart` | `Dart` |
+| `Haskell` | `Haskell` |
+| `Lua` | `Lua` |
+| `Perl` | `Perl` |
+| `R` | `R` |
+| `SQL` | `SQL` |
+| `Solidity` | `Solidity` |
+| `Erlang` | `Erlang` |
+| `F#`, `FSharp` | `F#\|\|FSharp` |
+| `Objective-C`, `ObjC` | `Objective-C\|\|ObjC` |
+| `Groovy` | `Groovy` |
+| `MATLAB` | `MATLAB` |
+| `Zig` | `Zig` |
+| `HTML` | `HTML` |
+| `CSS` | `CSS` |
+| `Bash`, `Shell` | `Bash\|\|Shell` |
+| `PowerShell` | `PowerShell` |
+
+### Frameworks and platforms
+
+| Type any of | Search |
+| --- | --- |
+| `Angular`, `AngularJS` | `Angular\|\|AngularJS` |
+| `React`, `ReactJS`, `React.js` | `React\|\|ReactJS\|\|React.js` |
+| `Vue`, `VueJS`, `Vue.js` | `Vue\|\|VueJS\|\|Vue.js` |
+| `Svelte`, `SvelteKit` | `Svelte\|\|SvelteKit` |
+| `Next`, `NextJS`, `Next.js` | `Next.js\|\|NextJS` |
+| `Nuxt`, `NuxtJS`, `Nuxt.js` | `Nuxt\|\|NuxtJS` |
+| `Node`, `NodeJS`, `Node.js` | `Node\|\|NodeJS\|\|Node.js` |
+| `Express`, `ExpressJS` | `Express\|\|ExpressJS` |
+| `Nest`, `NestJS`, `Nest.js` | `NestJS\|\|Nest.js` |
+| `Django` | `Django` |
+| `Flask` | `Flask` |
+| `FastAPI` | `FastAPI` |
+| `Spring`, `SpringBoot` | `Spring\|\|SpringBoot` |
+| `Rails`, `RubyOnRails`, `RoR` | `Rails\|\|RubyOnRails\|\|RoR` |
+| `Laravel` | `Laravel` |
+| `Symfony` | `Symfony` |
+| `Flutter` | `Flutter` |
+| `ReactNative`, `React-Native` | `ReactNative\|\|React-Native` |
+| `DotNet`, `.NET` | `DotNet\|\|.NET` |
+| `ASP.NET`, `ASPNet` | `ASP.NET` |
+| `Blazor` | `Blazor` |
+| `MAUI` | `MAUI` |
+| `WPF` | `WPF` |
+| `WinForms` | `WinForms` |
+| `Xamarin` | `Xamarin` |
+| `Gin` | `Gin` |
+| `Fiber` | `Fiber` |
+| `Ktor` | `Ktor` |
+| `Phoenix` | `Phoenix` |
+| `Actix` | `Actix` |
+| `Axum` | `Axum` |
+| `Rocket` | `Rocket` |
+| `Micronaut` | `Micronaut` |
+| `Quarkus` | `Quarkus` |
+| `Hibernate` | `Hibernate` |
+| `JavaFX` | `JavaFX` |
+| `Jetpack`, `Compose` | `Jetpack\|\|Compose` |
+| `SwiftUI` | `SwiftUI` |
+| `UIKit` | `UIKit` |
+| `Electron` | `Electron` |
+| `jQuery` | `jQuery` |
+| `Redux` | `Redux` |
+| `GraphQL` | `GraphQL` |
+| `Tailwind` | `Tailwind` |
+| `Bootstrap` | `Bootstrap` |
+| `Ember` | `Ember` |
+| `Remix` | `Remix` |
+| `Astro` | `Astro` |
+| `SolidJS` | `SolidJS` |
+| `Qwik` | `Qwik` |
+| `HTMX` | `HTMX` |
+| `TensorFlow` | `TensorFlow` |
+| `PyTorch` | `PyTorch` |
+| `Android` | `Android` |
+| `iOS` | `iOS` |
+| `Unity` | `Unity` |
+| `Unreal` | `Unreal` |
+
+## 4. Query language
 
 The query is one argument. Quote it. Operators may have spaces around them.
 
@@ -100,7 +228,7 @@ The query is one argument. Quote it. Operators may have spaces around them.
 | `(Senior\|\|Lead)&Angular` | parentheses. `&` and `&\|` bind tighter than `\|\|` |
 | `"remote work"` | a phrase |
 
-The operator to the left of a word sets that word's mode. The first word takes the mode of the first operator. One bare word is a literal search. Several bare words are an error. A single `|` is an error; OR is `||`.
+The operator to the left of a word sets that word's mode. The first word takes the mode of the first operator. One bare word is a literal search after presets expand, so `Go` becomes `Golang||Go` and `"Go"` stays the word Go. Several bare words are an error. A single `|` is an error; OR is `||`.
 
 Field flags use the same operators and are combined with AND. An alias name expands in place of a word.
 
@@ -116,7 +244,7 @@ remote = relocate, wfh, work from home
 
 A line replaces the whole group for that word. The built-in groups also include common translations of remote, senior, middle, and junior.
 
-## 4. Boards
+## 5. Boards
 
 The names are fixed. Any other `--platform` value is an error.
 
@@ -147,7 +275,7 @@ When both `--platform` and `--sources` are set, the result is their intersection
 
 These feeds ask for a credit. stdout is the job URL. The feeds: [remoteok.com](https://remoteok.com), [weworkremotely.com](https://weworkremotely.com), [remotive.com](https://remotive.com), [jobicy.com](https://jobicy.com), [arbeitnow.com](https://www.arbeitnow.com).
 
-## 5. Verbose output and JSON
+## 6. Verbose output and JSON
 
 The default line is a URL, so a pipe stays one job per line.
 
@@ -171,7 +299,7 @@ age: 11 days
 
 `--json` prints one object per line with `url`, `title`, `company`, `source`, and the same extra fields when they are known (`remote`, `location`, `salary`, `posted`, `age`). `--json` together with `--verbose` stays JSON.
 
-## 6. Cache
+## 7. Cache
 
 The seen-cache remembers vacancy URLs so a scanner does not print the same link on every pass.
 
@@ -208,7 +336,7 @@ Clear and immediately show the current matches, then keep watching:
 
 `--clear-cache` removes the whole `seen` directory. It forgets every scanner query, not only the one on the command line.
 
-## 7. Scanner
+## 8. Scanner
 
 `--scan` is the same flag as `--scanner`. The process repeats the search until Ctrl+C. `--every N` is the gap in minutes. The default is 60. `--every`, `--listen`, and `--webhook` require `--scanner`.
 
@@ -227,11 +355,11 @@ Ctrl+C stops it with exit code 0. Day to day, use `--every 30` or `--every 60` a
 
 Stdout still receives every emitted URL. The sections below add Telegram, SSE, or a webhook on top of that. All three can run in the same command. A scanner pass also writes progress to stderr when stderr is a terminal.
 
-## 8. Receive scan results
+## 9. Receive scan results
 
 Telegram is not inside vscan. The three outputs are the stdout pipe, the SSE port (`--listen`), and an HTTP POST (`--webhook`).
 
-### 8.1 Telegram bot
+### 9.1 Telegram bot
 
 Create a bot with [@BotFather](https://t.me/BotFather) and copy the token. Open the bot in Telegram and send it any message, then read your chat id:
 
@@ -267,7 +395,7 @@ done
 
 `--every 1` is for this check. For a real watch, use 30 or 60.
 
-### 8.2 SSE (`--listen`)
+### 9.2 SSE (`--listen`)
 
 `--listen` opens a local HTTP server. The default address is `127.0.0.1:8787`. Only loopback is accepted (`127.0.0.1` or `localhost`). `0.0.0.0` is rejected.
 
@@ -296,7 +424,7 @@ data: {"url":"https://remoteok.com/remote-jobs/1","title":"Go Developer","compan
 
 Connect `curl -N` before or during a pass. Events that fire while nobody is connected are not replayed. stdout still prints the same URLs in terminal 1.
 
-### 8.3 Webhook (`--webhook`)
+### 9.3 Webhook (`--webhook`)
 
 `--webhook` POSTs one JSON object per new vacancy to a URL you run. The body is the same object as `--json`, with `Content-Type: application/json`. A failed POST is retried twice. Your handler should answer with a 2xx status.
 
@@ -330,7 +458,7 @@ Terminal 2:
 
 Terminal 1 prints one JSON object per vacancy. Point `--webhook` at your own service the same way. The URL has to be reachable from the machine running vscan.
 
-### 8.4 All three together
+### 9.4 All three together
 
 stdout, SSE, and the webhook can run in one process:
 
@@ -341,9 +469,9 @@ stdout, SSE, and the webhook can run in one process:
   'Senior&|Angular'
 ```
 
-The pipe in section 8.1 can wrap this command as well. A closed stdout pipe stops the whole scanner.
+The pipe in section 9.1 can wrap this command as well. A closed stdout pipe stops the whole scanner.
 
-## 9. Aliases
+## 10. Aliases
 
 A short name expands to an expression in the query and in flags. A quoted phrase is not expanded.
 
@@ -354,9 +482,9 @@ A short name expands to an expression in the query and in flags. A quoted phrase
 ./bin/vscan alias --delete myStack
 ```
 
-File `~/.config/vscan/aliases`, one line `myStack=Angular||Typescript||JavaScript||JS||TS||React`. A name starts with a letter or `_`, then letters, digits, and `_`. A cycle is an error.
+File `~/.config/vscan/aliases`, one line `myStack=Angular||Typescript||JavaScript||JS||TS||React`. A name starts with a letter or `_`, then letters, digits, and `_`. A cycle is an error. An alias whose name matches a preset replaces that preset.
 
-## 10. History
+## 11. History
 
 ```bash
 ./bin/vscan --history
@@ -366,7 +494,7 @@ File `~/.config/vscan/aliases`, one line `myStack=Angular||Typescript||JavaScrip
 
 File `~/.local/share/vscan/history` (`$XDG_DATA_HOME/vscan/history`). New queries go to the top. A repeat moves to the top and is not stored twice. The saved line is the query before alias expansion, so aliases expand again on `--history N`. `--history` without a number lists queries and does not search. `--clear-cache` does not delete this file.
 
-## 11. Exit codes
+## 12. Exit codes
 
 | Code | When |
 | --- | --- |
@@ -376,7 +504,7 @@ File `~/.local/share/vscan/history` (`$XDG_DATA_HOME/vscan/history`). New querie
 
 Run the built binary when you check these codes. `go run` wraps the real status.
 
-## 12. Files and environment
+## 13. Files and environment
 
 | Path | Role |
 | --- | --- |
@@ -391,3 +519,46 @@ Run the built binary when you check these codes. `go run` wraps the real status.
 | --- | --- |
 | `HH_TOKEN` | optional hh.ru API token |
 | `SUPERJOB_API_KEY` | SuperJob API. Without it, SuperJob is read from HTML |
+
+## 14. Auto-apply
+
+Auto-apply lives in `internal/response`. The VPS build passes `-tags noresponse`, so that package is not linked and `creds` / `--response` cannot store a login:
+
+```bash
+make build
+# or
+CGO_ENABLED=0 go build -tags noresponse -o bin/vscan ./cmd/vscan
+```
+
+`make cross` uses the same tag. If both `-tags response` and `-tags noresponse` are set, `noresponse` wins.
+
+A personal Mac or Linux machine builds a second binary. `./bin/vscan` stays the search program, so copying it to a VPS cannot store logins.
+
+```bash
+make build-response
+./bin/vscan-response creds set hh
+```
+
+`creds set` asks for the login and the password on the terminal. The password is not printed and is not written into the project. macOS stores it in the Keychain (service `vscan/hh`). Linux stores it in Secret Service via `secret-tool` (package `libsecret-tools`). On macOS the password is handed to the `security` tool as an argument, so it can appear briefly in the process list; it is not saved in a file. `creds` prints board names only. `creds delete hh` removes that login.
+
+Boards that have their own apply button: `hh`, `habr`, `superjob`, `djinni`, `getmatch`, `geekjob`. Aggregators such as Remote OK and Remotive are skipped, because their links leave the board. Chrome or Chromium must be installed. The browser logs in, then clicks Apply. The resume already chosen on the site is the one that is sent. There is no cover letter in this phase.
+
+A captcha, a confirmation code, or a form with extra questions is skipped. The reason goes to stderr and the next URL is tried.
+
+Pass links one per line, or as one argument split by the unit separator (a character that cannot appear in a URL):
+
+```bash
+./bin/vscan --no-history --max-pages 1 --sources hh,habr Go > /tmp/jobs.txt
+./bin/vscan-response --response < /tmp/jobs.txt
+
+printf '%s\x1f%s\n' \
+  'https://hh.ru/vacancy/1' \
+  'https://career.habr.com/vacancies/2' | ./bin/vscan-response --response
+
+./bin/vscan-response --headed --response "$(printf '%s\x1f%s' \
+  'https://hh.ru/vacancy/1' \
+  'https://djinni.co/jobs/2')"
+```
+
+`--headed` shows the browser window. Stdout of a finished run is `applied N`. Exit 0 means at least one application was confirmed, 1 means none, 2 means bad arguments or a build without this module.
+

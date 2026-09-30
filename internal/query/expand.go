@@ -9,14 +9,21 @@ import (
 
 // Expand replaces alias names with their bodies, wrapped in parentheses.
 // A quoted phrase is left as written. Cycles are an error.
+// Language presets are not applied. Use ExpandPresets for a search query.
 func Expand(input string, aliases map[string]string) (string, error) {
-	if strings.TrimSpace(input) == "" || len(aliases) == 0 {
-		return input, nil
-	}
-	return expand(input, aliases, nil)
+	return expand(input, aliases, false, nil)
 }
 
-func expand(input string, aliases map[string]string, stack []string) (string, error) {
+// ExpandPresets expands aliases and then built-in language presets.
+// A user alias of the same name wins. A preset body is not expanded again.
+func ExpandPresets(input string, aliases map[string]string) (string, error) {
+	return expand(input, aliases, true, nil)
+}
+
+func expand(input string, aliases map[string]string, presets bool, stack []string) (string, error) {
+	if strings.TrimSpace(input) == "" {
+		return input, nil
+	}
 	var b strings.Builder
 	s := input
 	i := 0
@@ -55,19 +62,29 @@ func expand(input string, aliases map[string]string, stack []string) (string, er
 				j += sz
 			}
 			term := s[i:j]
-			body, ok := aliases[term]
+			body, ok := aliasBody(term, aliases)
+			if !ok && presets {
+				if expr, hit := LookupPreset(term); hit {
+					b.WriteByte('(')
+					b.WriteString(expr)
+					b.WriteByte(')')
+					i = j
+					continue
+				}
+			}
 			if !ok {
 				b.WriteString(term)
 				i = j
 				continue
 			}
+			key := strings.ToLower(term)
 			for _, name := range stack {
-				if name == term {
+				if name == key {
 					return "", fmt.Errorf("alias cycle involving %s", term)
 				}
 			}
-			next := append(append([]string{}, stack...), term)
-			inner, err := expand(body, aliases, next)
+			next := append(append([]string{}, stack...), key)
+			inner, err := expand(body, aliases, presets, next)
 			if err != nil {
 				return "", err
 			}
@@ -78,6 +95,27 @@ func expand(input string, aliases map[string]string, stack []string) (string, er
 		}
 	}
 	return b.String(), nil
+}
+
+func aliasBody(term string, aliases map[string]string) (string, bool) {
+	if len(aliases) == 0 {
+		return "", false
+	}
+	if body, ok := aliases[term]; ok {
+		return body, true
+	}
+	var found string
+	n := 0
+	for name, body := range aliases {
+		if strings.EqualFold(name, term) {
+			found = body
+			n++
+		}
+	}
+	if n == 1 {
+		return found, true
+	}
+	return "", false
 }
 
 func skipQuoted(s string, i int) (int, error) {

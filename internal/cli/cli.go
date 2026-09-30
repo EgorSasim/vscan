@@ -12,34 +12,49 @@ import (
 
 // Options is a parsed invocation. Query may still be empty when it comes from stdin.
 type Options struct {
-	Help       bool
-	JSON       bool
-	Verbose    bool
-	Scanner    bool
-	ClearCache bool
-	NoHistory  bool
-	History    bool
-	HistoryN   int
-	Every      time.Duration
-	EverySet   bool
-	MaxPages   int
-	Listen     string
-	Webhook    string
-	Sources    []string
-	Query      string
-	Company    string
-	Profession string
-	Platform   string
-	AliasList  bool
-	AliasName  string
-	AliasValue string
-	AliasDel   string
+	Help          bool
+	JSON          bool
+	Verbose       bool
+	Scanner       bool
+	ClearCache    bool
+	NoHistory     bool
+	History       bool
+	HistoryN      int
+	Every         time.Duration
+	EverySet      bool
+	MaxPages      int
+	Listen        string
+	Webhook       string
+	Sources       []string
+	Query         string
+	Company       string
+	Profession    string
+	Platform      string
+	AliasList     bool
+	AliasName     string
+	AliasValue    string
+	AliasDel      string
+	Presets       bool
+	Response      bool
+	ResponseArg   string
+	Headed        bool
+	CredsAction   string
+	CredsPlatform string
 }
 
 // Parse reads arguments after the program name.
 func Parse(args []string) (Options, error) {
 	if len(args) > 0 && args[0] == "alias" {
 		return parseAlias(args[1:])
+	}
+	if len(args) > 0 && args[0] == "presets" {
+		if len(args) != 1 {
+			return Options{}, fmt.Errorf("vscan presets")
+		}
+		return Options{Presets: true}, nil
+	}
+	if len(args) > 0 && args[0] == "creds" {
+		return parseCreds(args[1:])
 	}
 	opt := Options{MaxPages: 0, Every: 60 * time.Minute}
 	var positionals []string
@@ -57,6 +72,19 @@ func Parse(args []string) (Options, error) {
 			opt.Scanner = true
 		case a == "--clear-cache":
 			opt.ClearCache = true
+		case a == "--headed":
+			opt.Headed = true
+		case a == "--response" || strings.HasPrefix(a, "--response="):
+			opt.Response = true
+			if v, ok := strings.CutPrefix(a, "--response="); ok {
+				if v == "" {
+					return Options{}, fmt.Errorf("--response: pass URLs or omit the value to read stdin")
+				}
+				opt.ResponseArg = v
+			} else if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				i++
+				opt.ResponseArg = args[i]
+			}
 		case a == "--no-history":
 			opt.NoHistory = true
 		case a == "--history" || strings.HasPrefix(a, "--history="):
@@ -177,6 +205,12 @@ func Parse(args []string) (Options, error) {
 	if opt.History && opt.HistoryN == 0 && opt.HasSearch() {
 		return Options{}, fmt.Errorf("--history without a number lists queries and does not search")
 	}
+	if opt.Headed && !opt.Response {
+		return Options{}, fmt.Errorf("--headed only works with --response")
+	}
+	if opt.Response && (opt.HasSearch() || opt.Scanner || opt.History) {
+		return Options{}, fmt.Errorf("--response does not run a search")
+	}
 	return opt, nil
 }
 
@@ -201,6 +235,21 @@ func (o Options) SearchRecord() string {
 		parts = append(parts, quoteArg(o.Query))
 	}
 	return strings.Join(parts, " ")
+}
+
+func parseCreds(args []string) (Options, error) {
+	if len(args) == 0 {
+		return Options{CredsAction: "list"}, nil
+	}
+	switch args[0] {
+	case "set", "delete":
+		if len(args) != 2 {
+			return Options{}, fmt.Errorf("vscan creds %s PLATFORM", args[0])
+		}
+		return Options{CredsAction: args[0], CredsPlatform: args[1]}, nil
+	default:
+		return Options{}, fmt.Errorf("vscan creds [set|delete] PLATFORM")
+	}
 }
 
 func parseAlias(args []string) (Options, error) {
@@ -403,12 +452,35 @@ Names: hh, habr, superjob, djinni, getmatch, geekjob, remoteok, wwr,
 arbeitnow, remotive, jobicy, himalayas, nomads.
 With --sources, the result is the intersection of the two lists.
 
+Presets cover the usual spellings of a language or framework:
+  vscan Go
+  vscan Angular
+  vscan 'C++'
+  vscan presets
+
+Go matches Golang, Angular matches AngularJS. A user alias with the
+same name wins. Quote a name to keep that word only: "Go".
+
 Aliases:
   vscan alias myStack='Angular||Typescript||JavaScript||JS||TS||React'
   vscan alias
   vscan alias --delete myStack
 
 Alias file: ~/.config/vscan/aliases.
+
+Auto-apply is omitted by -tags noresponse (make build, the VPS binary).
+It is included only by -tags response (make build-response, bin/vscan-response).
+If both tags are set, noresponse wins.
+  vscan creds set hh
+  vscan creds
+  vscan creds delete hh
+  vscan --response URLS
+  vscan --response          read URLs from stdin, one per line
+
+URLS may use newlines or the unit separator $'\x1f' between links.
+Boards with an apply button: hh, habr, superjob, djinni, getmatch, geekjob.
+Logins stay in the OS keychain (macOS) or Secret Service (Linux).
+A captcha, a confirmation code, or extra form questions skip that vacancy.
 
 Flags:
   -h, --help                 this help
@@ -428,6 +500,8 @@ Flags:
   --no-history               do not remember this query
   --clear-cache              forget remembered vacancy URLs, then exit
                              with --scanner, print the current matches again
+  --response [URLS]          apply to vacancy URLs (optional build only)
+  --headed                   show the browser window; only with --response
 
 Default stdout is one URL per line. --json adds title, company, source,
 and, when the board provides them, remote, location, salary, posted, age.

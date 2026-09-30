@@ -102,6 +102,34 @@ func TestHelpStops(t *testing.T) {
 	}
 }
 
+func TestResponseAndCredsFlags(t *testing.T) {
+	opt, err := Parse([]string{"--response", "https://hh.ru/vacancy/1"})
+	if err != nil || !opt.Response || opt.ResponseArg == "" {
+		t.Fatalf("%#v %v", opt, err)
+	}
+	opt, err = Parse([]string{"--headed", "--response"})
+	if err != nil || !opt.Headed || !opt.Response {
+		t.Fatalf("%#v %v", opt, err)
+	}
+	if _, err := Parse([]string{"--headed", "Go"}); err == nil {
+		t.Fatal("--headed without --response")
+	}
+	opt, err = Parse([]string{"creds", "set", "hh"})
+	if err != nil || opt.CredsAction != "set" || opt.CredsPlatform != "hh" {
+		t.Fatalf("%#v %v", opt, err)
+	}
+}
+
+func TestPresetsCommand(t *testing.T) {
+	opt, err := Parse([]string{"presets"})
+	if err != nil || !opt.Presets {
+		t.Fatalf("%#v %v", opt, err)
+	}
+	if _, err := Parse([]string{"presets", "Go"}); err == nil {
+		t.Fatal("presets takes no arguments")
+	}
+}
+
 func TestScanVerboseAndClearCache(t *testing.T) {
 	opt, err := Parse([]string{"--scan", "--verbose", "--clear-cache", "--every", "1", "Go"})
 	if err != nil || !opt.Scanner || !opt.Verbose || !opt.ClearCache || opt.Query != "Go" {

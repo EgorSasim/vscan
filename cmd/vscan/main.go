@@ -17,6 +17,7 @@ import (
 	"vscan/internal/engine"
 	"vscan/internal/httpx"
 	"vscan/internal/query"
+	"vscan/internal/response"
 	"vscan/internal/sources"
 	"vscan/internal/store"
 )
@@ -31,6 +32,20 @@ func main() {
 	if opts.Help {
 		fmt.Print(cli.Help())
 		os.Exit(0)
+	}
+	if opts.Presets {
+		for _, p := range query.Presets() {
+			fmt.Printf("%s = %s\n", strings.Join(p.Names, ", "), p.Expr)
+		}
+		os.Exit(0)
+	}
+	if opts.CredsAction != "" {
+		os.Exit(response.Creds(opts.CredsAction, opts.CredsPlatform))
+	}
+	if opts.Response {
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		os.Exit(response.Run(ctx, opts.ResponseArg, os.Stdin, isTerminal(os.Stdin), opts.Headed))
 	}
 
 	dirs := store.DefaultDirs()
@@ -108,7 +123,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "vscan: %v\n", err)
 		os.Exit(2)
 	}
-	opts.Query, err = query.Expand(opts.Query, aliasMap)
+	opts.Query, err = query.ExpandPresets(opts.Query, aliasMap)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "vscan: %v\n", err)
 		os.Exit(2)
@@ -118,7 +133,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "vscan: %v\n", err)
 		os.Exit(2)
 	}
-	opts.Profession, err = query.Expand(opts.Profession, aliasMap)
+	opts.Profession, err = query.ExpandPresets(opts.Profession, aliasMap)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "vscan: %v\n", err)
 		os.Exit(2)
